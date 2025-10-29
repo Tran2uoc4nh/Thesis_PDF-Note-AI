@@ -1,7 +1,9 @@
 import Image from 'next/image'
 import React from 'react'
-
+import { useUser } from '@clerk/nextjs';
+import { UserButton } from '@clerk/nextjs';
 function HomePageHeader() {
+    const { isLoaded, user } = useUser();
     return (
         <div className='px-5 relative z-50'>
             <nav className="z-10 w-full ">
@@ -51,17 +53,23 @@ function HomePageHeader() {
                                 </ul>
                             </div>
 
+                            {/* Conditional: UserButton khi đã login, không hiện gì khi chưa login */}
                             <div className="mt-12 lg:mt-0">
-                                <a
-                                    href="/dashboard"
-                                    className="relative flex h-9 w-full items-center justify-center px-4 before:absolute before:inset-0 before:rounded-full before:bg-primary before:transition 
-                            before:duration-300 hover:before:scale-105 
-                            active:duration-75 active:before:scale-95 sm:w-max"
-                                >
-                                    <span className="relative text-sm font-semibold text-white"
-                                    >Get Started</span>
-                                </a>
+                                {isLoaded && user && (
+                                    <div className="flex items-center">
+                                        <UserButton
+                                            afterSignOutUrl="/"
+                                            appearance={{
+                                                elements: {
+                                                    avatarBox: "w-10 h-10"
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                )}
                             </div>
+
+
                         </div>
                     </div>
                 </div>

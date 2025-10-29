@@ -31,11 +31,26 @@ const UploadPDF = ({ children, isMaxFile }) => {
     const { user } = useUser()
     const [file, setFile] = useState()
     const [loading, setLoading] = useState(false)
-    const [fileName, setFileName] = useState()
+    const [fileName, setFileName] = useState('')
     const [open, setOpen] = useState(false)
 
+
+    // Function để truncate tên file dài
+    const truncateFileName = (name, maxLength = 30) => {
+        if (name.length <= maxLength) return name
+        const start = name.substring(0, 12)
+        const end = name.substring(name.length - 12)
+        return `${start}...${end}`
+    }
+
     const OnFileSelect = (event) => {
-        setFile(event.target.files[0])
+        const selectedFile = event.target.files[0]
+        setFile(selectedFile)
+        // Tự động set tên file mặc định (bỏ extension .pdf)
+        if (selectedFile) {
+            const defaultName = selectedFile.name.replace('.pdf', '')
+            setFileName(defaultName)
+        }
     }
     const OnUpload = async () => {
         setLoading(true)
@@ -60,6 +75,10 @@ const UploadPDF = ({ children, isMaxFile }) => {
         const fileId = uuid4()
         const fileUrl = await getFileUrl({ storageId: storageId })
 
+        // Dùng tên file custom hoặc tên file gốc
+        const finalFileName = fileName.trim() || file.name.replace('.pdf', '')
+
+
         // 3.Save the newly allocated storage id to the database
         const resp = await addFileEntry({
             filedId: fileId,
@@ -82,15 +101,17 @@ const UploadPDF = ({ children, isMaxFile }) => {
 
         setLoading(false)
         setOpen(false)
+        setFileName('') // Reset
+        setFile(null) // Reset
 
         toast.success('File is ready', {
             icon: <CircleCheckIcon size={16} className="text-emerald-600" />
         })
     }
     return (
-        <Dialog open={open}>
+        <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button onClick={() => setOpen(true)} disabled={isMaxFile} className='w-full'>+ Upload PDF</Button>
+                <Button onClick={() => setOpen(true)} disabled={isMaxFile} className='w-full hover:scale-105 transition-all duration-200'>+ Upload PDF</Button>
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
@@ -115,8 +136,14 @@ const UploadPDF = ({ children, isMaxFile }) => {
                                 />
                             </div>
                             <div className='mt-2'>
-                                <label>File Name *</label>
-                                <Input placeholder='Enter file name' onChange={(event) => setFileName(event.target.value)} />
+                                <label className='text-sm text-gray-600'>
+                                    File Name <span className='text-gray-500'>(optional)</span>
+                                </label>
+                                <Input
+                                    placeholder='Enter custom name or use default'
+                                    value={fileName}
+                                    onChange={(event) => setFileName(event.target.value)}
+                                />
                             </div>
 
                         </div>
@@ -124,7 +151,11 @@ const UploadPDF = ({ children, isMaxFile }) => {
                 </DialogHeader>
                 <DialogFooter className="sm:justify-end">
                     <DialogClose asChild>
-                        <Button type="button" variant="secondary">
+                        <Button className='hover:bg-slate-200 hover:scale-105 transition-all duration-200' type="button" variant="secondary" onClick={() => {
+                            setFile(null)
+                            setFileName('')
+                            setOpen(false)
+                        }}>
                             Close
                         </Button>
                     </DialogClose>

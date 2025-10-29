@@ -52,3 +52,4 @@ export const GetUserInfo = query({
         return result[0];
     }
 })
+

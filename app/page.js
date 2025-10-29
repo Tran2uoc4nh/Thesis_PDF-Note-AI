@@ -38,18 +38,18 @@ export default function Home() {
           `,
             backgroundSize: "32px 32px",
             WebkitMaskImage:
-              "radial-gradient(ellipse 80% 80% at 0% 0%, #000 50%, transparent 90%)",
+              "radial-gradient(ellipse 80% 80% at 50% 0%, #000 50%, transparent 90%)",
             maskImage:
-              "radial-gradient(ellipse 80% 80% at 0% 0%, #000 50%, transparent 90%)",
+              "radial-gradient(ellipse 80% 80% at 50% 0%, #000 50%, transparent 90%)",
           }}
         />
       </div>
 
       {/* Content Layer */}
-      <div className="relative z-10">
+      <div className="relative z-10" >
         <HomePageHeader />
         <Hero />
-      </div>
-    </div>
+      </div >
+    </div >
   );
 }

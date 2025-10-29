@@ -39,7 +39,7 @@ const SideBar = () => {
                     {/* Nút Workspace */}
                     <div className={`flex items-center gap-2 p-3 mt-7 cursor-pointer  hover:bg-slate-100 
                 transition-all duration-200
-                hover:shadow-lg hover:-translate-y-1 rounded-xl ${path == '/dashboard' && 'bg-slate-100'}`}>
+                hover:shadow-lg hover:-translate-y-1 rounded-xl ${path == '/dashboard' && 'bg-slate-100 shadow-lg -translate-y-1 '}`}>
                         <Files />
                         <h2>
                             Workspace
@@ -51,7 +51,7 @@ const SideBar = () => {
                     {/* Nút Upgrade Plan */}
                     <div className={`flex items-center gap-2 p-3 mt-2 cursor-pointer  hover:bg-slate-100 
                 transition-all duration-200
-                hover:shadow-lg hover:-translate-y-1 rounded-xl ${path == '/dashboard/upgrade' && 'bg-slate-200'}`} >
+                hover:shadow-lg hover:-translate-y-1 rounded-xl ${path == '/dashboard/upgrade' && 'bg-slate-100 shadow-lg -translate-y-1 '}`} >
                         <ArrowBigUp />
                         <h2>
                             Upgrade Plan
@@ -61,12 +61,12 @@ const SideBar = () => {
             </div>
 
             {/* Progress Bar */}
-            <div className='absolute bottom-24 w-[80%]'>
+            {!GetUserInfo?.upgrade && <div className='absolute bottom-24 w-[80%]'>
                 <Progress value={(fileList?.length / 5) * 100} />
                 <p className='text-sm text-gray-500'>{fileList?.length} out of 5 PDF Uploaded</p>
 
                 <p className='text-xs mt-2 text-gray-400 '>Upgrade to Upload more</p>
-            </div>
+            </div>}
 
         </div>
     )

@@ -60,3 +60,25 @@ export const GetUserFiles = query({
     }
 })
 
+export const DeleteFile = mutation({
+    args: {
+        fileId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        // Tìm file trong database
+        const file = await ctx.db.query('pdfFiles')
+            .filter((q) => q.eq(q.field('fileId'), args.fileId))
+            .collect();
+
+        if (file.length > 0) {
+            // Xóa file từ storage
+            await ctx.storage.delete(file[0].storageId);
+
+            // Xóa record trong database
+            await ctx.db.delete(file[0]._id);
+
+            return 'File deleted successfully';
+        }
+        return 'File not found';
+    }
+})

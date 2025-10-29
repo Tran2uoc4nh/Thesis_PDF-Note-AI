@@ -8,9 +8,9 @@ const DashBoardLayout = ({ children }) => {
             <div className='md:w-64 h-screen fixed'>
                 <SideBar />
             </div>
-            <div className='md:ml-64'>
+            <div className='md:ml-64 h-screen flex flex-col'>
                 <Header />
-                <div className='p-5'>
+                <div className='shadow-inner p-5 flex-1 overflow-auto'>
                     {children}
                 </div>
 

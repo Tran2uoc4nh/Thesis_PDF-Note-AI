@@ -361,7 +361,7 @@ const EditorExtension = ({ editor }) => {
 
 
                     {/* Download */}
-                    <button onClick={download} className='ml-57'>
+                    <button onClick={download} className='ml-3'>
                         <DownloadIcon className="hover:scale-125 transition-transform duration-200" />
                     </button>
                 </div>
