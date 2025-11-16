@@ -34,9 +34,11 @@ const UploadPDF = ({ children, isMaxFile }) => {
     const [fileName, setFileName] = useState('')
     const [open, setOpen] = useState(false)
 
+    const [includeImages, setIncludeImages] = useState(false)
+    const ingestWithImages = useAction(api.ingest.ingestPdfWithImages)
 
     // Function để truncate tên file dài
-    const truncateFileName = (name, maxLength = 30) => {
+    const truncateFileName = (name, maxLength = 60) => {
         if (name.length <= maxLength) return name
         const start = name.substring(0, 12)
         const end = name.substring(name.length - 12)
@@ -52,62 +54,169 @@ const UploadPDF = ({ children, isMaxFile }) => {
             setFileName(defaultName)
         }
     }
+    // const OnUpload = async () => {
+    //     setLoading(true)
+
+    //     if (!file || !fileName) {
+    //         setLoading(false)
+    //         toast(!file ? 'Please select pdf' : 'Please enter filename')
+    //         return;
+    //     }
+
+    //     // 1. Get a short-lived upload URL
+    //     const postUrl = await generateUploadUrl();
+
+    //     // 2. POST the file to the URL
+    //     const result = await fetch(postUrl, {
+    //         method: "POST",
+    //         headers: { "Content-Type": file?.type },
+    //         body: file,
+    //     });
+    //     const { storageId } = await result.json()
+    //     console.log(storageId)
+    //     const fileId = uuid4()
+    //     const fileUrl = await getFileUrl({ storageId: storageId })
+
+    //     // Dùng tên file custom hoặc tên file gốc
+    //     const finalFileName = fileName.trim() || file.name.replace('.pdf', '')
+
+
+    //     // 3.Save the newly allocated storage id to the database
+    //     const resp = await addFileEntry({
+    //         filedId: fileId,
+    //         storageId: storageId,
+    //         fileName: fileName ?? 'Untitled File',
+    //         fileUrl: fileUrl,
+    //         createdBy: user?.primaryEmailAddress?.emailAddress
+    //     })
+
+
+    //     // API call to fetch the PDF Process data
+
+    //     const ApiResp = await axios.get('/api/pdf-loader?pdfUrl=' + fileUrl)
+    //     await embededDocument({
+    //         splitText: ApiResp.data.result,
+    //         fileId: fileId,
+    //         metadata: ApiResp.data.metadata
+    //     })
+
+
+    //     setLoading(false)
+    //     setOpen(false)
+    //     setFileName('') // Reset
+    //     setFile(null) // Reset
+
+    //     toast.success('File is ready', {
+    //         icon: <CircleCheckIcon size={16} className="text-emerald-600" />
+    //     })
+    // }
     const OnUpload = async () => {
         setLoading(true)
 
-        if (!file || !fileName) {
+        if (!file) {
             setLoading(false)
-            toast(!file ? 'Please select pdf' : 'Please enter filename')
+            toast.error('Please select pdf')
             return;
         }
 
-        // 1. Get a short-lived upload URL
-        const postUrl = await generateUploadUrl();
+        try {
+            // 1. Upload file lên storage
+            const postUrl = await generateUploadUrl();
+            const result = await fetch(postUrl, {
+                method: "POST",
+                headers: { "Content-Type": file?.type },
+                body: file,
+            });
+            const { storageId } = await result.json()
+            const fileId = uuid4()
+            const fileUrl = await getFileUrl({ storageId: storageId })
+            const finalFileName = fileName.trim() || file.name.replace('.pdf', '')
 
-        // 2. POST the file to the URL
-        const result = await fetch(postUrl, {
-            method: "POST",
-            headers: { "Content-Type": file?.type },
-            body: file,
-        });
-        const { storageId } = await result.json()
-        console.log(storageId)
-        const fileId = uuid4()
-        const fileUrl = await getFileUrl({ storageId: storageId })
+            // 2. Generate thumbnail
+            let thumbnailStorageId = null;
+            let thumbnailUrl = null;
 
-        // Dùng tên file custom hoặc tên file gốc
-        const finalFileName = fileName.trim() || file.name.replace('.pdf', '')
+            try {
+                const thumbResponse = await axios.post('/api/generate-thumbnail', { pdfUrl: fileUrl });
+
+                if (thumbResponse.data.thumbnailData) {
+                    // Convert base64 to blob
+                    const base64Data = thumbResponse.data.thumbnailData.split(',')[1];
+                    const binaryData = atob(base64Data);
+                    const uint8Array = new Uint8Array(binaryData.length);
+                    for (let i = 0; i < binaryData.length; i++) {
+                        uint8Array[i] = binaryData.charCodeAt(i);
+                    }
+                    const blob = new Blob([uint8Array], { type: 'application/pdf' });
+
+                    // Upload thumbnail
+                    const thumbPostUrl = await generateUploadUrl();
+                    const thumbResult = await fetch(thumbPostUrl, {
+                        method: "POST",
+                        headers: { "Content-Type": 'application/pdf' },
+                        body: blob,
+                    });
+                    const thumbData = await thumbResult.json();
+                    thumbnailStorageId = thumbData.storageId;
+                    thumbnailUrl = await getFileUrl({ storageId: thumbnailStorageId });
+                }
+            } catch (thumbError) {
+                console.error('Thumbnail generation failed:', thumbError);
+                // Continue without thumbnail
+            }
+
+            // 3. Save file entry với thumbnail
+            await addFileEntry({
+                filedId: fileId,
+                storageId: storageId,
+                fileName: finalFileName,
+                fileUrl: fileUrl,
+                thumbnailStorageId: thumbnailStorageId,
+                thumbnailUrl: thumbnailUrl,
+                createdBy: user?.primaryEmailAddress?.emailAddress
+            })
+
+            // 4. Process PDF chunks
+            // const ApiResp = await axios.get('/api/pdf-loader?pdfUrl=' + fileUrl)
+            // await embededDocument({
+            //     splitText: ApiResp.data.result,
+            //     fileId: fileId,
+            //     metadata: ApiResp.data.metadata
+            // })
+            if (includeImages) {
+                // Dùng Gemini Multimodal
+                console.log('Using Gemini Multimodal approach...');
+                await ingestWithImages({
+                    pdfUrl: fileUrl,
+                    fileId: fileId
+                });
+            } else {
+                // Dùng cách cũ (chỉ text)
+                console.log('Using text-only approach...');
+                const ApiResp = await axios.get('/api/pdf-loader?pdfUrl=' + encodeURIComponent(fileUrl))
+                await embededDocument({
+                    splitText: ApiResp.data.result,
+                    fileId: fileId,
+                    metadata: ApiResp.data.metadata
+                })
+            }
 
 
-        // 3.Save the newly allocated storage id to the database
-        const resp = await addFileEntry({
-            filedId: fileId,
-            storageId: storageId,
-            fileName: fileName ?? 'Untitled File',
-            fileUrl: fileUrl,
-            createdBy: user?.primaryEmailAddress?.emailAddress
-        })
+            setLoading(false)
+            setOpen(false)
+            setFileName('')
+            setFile(null)
 
-
-        // API call to fetch the PDF Process data
-
-        const ApiResp = await axios.get('/api/pdf-loader?pdfUrl=' + fileUrl)
-        await embededDocument({
-            splitText: ApiResp.data.result,
-            fileId: fileId,
-            metadata: ApiResp.data.metadata
-        })
-
-
-        setLoading(false)
-        setOpen(false)
-        setFileName('') // Reset
-        setFile(null) // Reset
-
-        toast.success('File is ready', {
-            icon: <CircleCheckIcon size={16} className="text-emerald-600" />
-        })
+            toast.success('File is ready', {
+                icon: <CircleCheckIcon size={16} className="text-emerald-600" />
+            })
+        } catch (error) {
+            console.error('Upload error:', error)
+            toast.error('Upload failed')
+            setLoading(false)
+        }
     }
+
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -118,6 +227,32 @@ const UploadPDF = ({ children, isMaxFile }) => {
                     <DialogTitle>Upload PDF File</DialogTitle>
                     <DialogDescription asChild>
                         <div className=''>
+
+
+                            {/* Box tick */}
+                            <div className='mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg'>
+                                <label className='flex items-start space-x-3 cursor-pointer'>
+                                    <input
+                                        type="checkbox"
+                                        checked={includeImages}
+                                        onChange={(e) => setIncludeImages(e.target.checked)}
+                                        className='mt-1 w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500'
+                                    />
+                                    <div className='flex-1'>
+                                        <span className='text-sm font-semibold text-gray-800 block'>
+                                            Image Analysis in PDF (AI Vision)
+                                        </span>
+                                        <p className='text-xs text-gray-600 mt-1'>
+
+                                            <span className='font-medium'> Takes another 30-60 seconds</span>
+                                        </p>
+
+                                    </div>
+                                </label>
+                            </div>
+
+
+
                             <h2 className='mt-5'>Select a file to upload</h2>
                             <div className='gap-2 p-3 rounded-md border'>
                                 <input

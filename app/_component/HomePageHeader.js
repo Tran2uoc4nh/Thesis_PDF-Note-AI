@@ -61,7 +61,7 @@ function HomePageHeader() {
                                             afterSignOutUrl="/"
                                             appearance={{
                                                 elements: {
-                                                    avatarBox: "w-10 h-10"
+                                                    avatarBox: "w-30 h-30 border-2 border-black"
                                                 }
                                             }}
                                         />

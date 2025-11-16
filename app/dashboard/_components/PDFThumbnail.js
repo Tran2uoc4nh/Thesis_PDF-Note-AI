@@ -1,30 +1,41 @@
 'use client'
-import React from 'react'
+import React, { useState } from 'react'
 import Image from 'next/image'
 import { FileText } from 'lucide-react'
 
-const PDFThumbnail = ({ fileUrl, fileName }) => {
-    return (
-        <div className='w-full h-[140px] flex flex-col items-center justify-center bg-gradient-to-br from-red-50 to-red-100 rounded-lg border border-red-200 relative overflow-hidden group'>
-            {/* Background pattern */}
-            <div className='absolute inset-0 opacity-10'>
-                <svg width="100%" height="100%">
-                    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                        <path d="M 20 0 L 0 0 0 20" fill="none" stroke="red" strokeWidth="0.5" />
-                    </pattern>
-                    <rect width="100%" height="100%" fill="url(#grid)" />
-                </svg>
-            </div>
+const PDFThumbnail = ({ thumbnailUrl, fileName }) => {
+    const [imageError, setImageError] = useState(false)
 
-            {/* PDF Icon */}
-            <div className='relative z-10 transform group-hover:scale-110 transition-transform'>
+    if (!thumbnailUrl || imageError) {
+        // Fallback to icon
+        return (
+            <div className='w-full h-[140px] flex flex-col items-center justify-center bg-gradient-to-br from-red-50 to-red-100 rounded-lg border border-red-200'>
                 <FileText size={48} className='text-red-600' />
+                <div className='mt-2 px-3 py-1 bg-red-600 text-white text-xs font-semibold rounded-full'>
+                    PDF
+                </div>
             </div>
+        )
+    }
 
-            {/* PDF Label */}
-            <div className='mt-2 px-3 py-1 bg-red-600 text-white text-xs font-semibold rounded-full'>
-                PDF
-            </div>
+    return (
+        // <div className='w-full h-[140px] relative overflow-hidden rounded-lg border border-gray-200 bg-white'>
+        //     <iframe
+        //         src={`${thumbnailUrl}#page=1&view=FitH&scrollbars=0`}
+        //         className='w-full h-full pointer-events-none'
+        //         onError={() => setImageError(true)}
+        //     />
+        // </div>
+        <div className='w-full h-[140px] relative overflow-hidden rounded-lg border border-gray-200 bg-white'>
+            <iframe
+                src={`${thumbnailUrl}#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=0`}
+                className='w-full h-full pointer-events-none border-0'
+                style={{
+                    transform: 'scale(1.1)',
+                    transformOrigin: 'top center'
+                }}
+                onError={() => setImageError(true)}
+            />
         </div>
     )
 }

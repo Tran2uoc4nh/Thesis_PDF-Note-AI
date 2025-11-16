@@ -13,7 +13,9 @@ export const AddFileEntryToDb = mutation({
         storageId: v.string(),
         fileName: v.string(),
         createdBy: v.string(),
-        fileUrl: v.string()
+        fileUrl: v.string(),
+        thumbnailStorageId: v.optional(v.string()),
+        thumbnailUrl: v.optional(v.string())
     },
     handler: async (ctx, args) => {
         const result = await ctx.db.insert('pdfFiles', {
@@ -21,7 +23,9 @@ export const AddFileEntryToDb = mutation({
             storageId: args.storageId,
             fileName: args.fileName,
             fileUrl: args.fileUrl,
-            createdBy: args.createdBy
+            createdBy: args.createdBy,
+            thumbnailStorageId: args.thumbnailStorageId,
+            thumbnailUrl: args.thumbnailUrl
         })
         return 'Inserted'
     }

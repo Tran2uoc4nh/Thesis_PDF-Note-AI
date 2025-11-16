@@ -92,6 +92,7 @@ export async function GET(req) {
                 totalPages: docs.length,
                 cleanedPages: cleanedDocs.length,
                 totalChunks: splitterList.length,
+                chunks: splitterList.map(c => c.metadata)
             }
         });
 

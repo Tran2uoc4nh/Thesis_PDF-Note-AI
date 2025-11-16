@@ -8,7 +8,7 @@ import UploadPDF from './_components/UploadPDF'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { X, FileText, Clock, Grid3x3, List, ArrowDownUp, ArrowUp, ArrowDown } from 'lucide-react'
 import {
     Dialog,
     DialogContent,
@@ -22,10 +22,75 @@ import { toast } from 'sonner'
 import PDFThumbnail from './_components/PDFThumbnail'
 
 
+const formatDate = (timestamp, viewMode) => {
+    const date = new Date(timestamp)
+    const now = new Date()
+    const diffMs = now - date
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+    // Tính số phút còn lại sau khi trừ giờ
+    const remainingMins = diffMins % 60
+
+    const day = date.getDate().toString().padStart(2, '0')
+    const month = (date.getMonth() + 1).toString().padStart(2, '0')
+    const year = date.getFullYear()
+    if (viewMode === 'grid') {
+        if (diffMins < 1) return `Just now - ${day}/${month}/${year}`
+        if (diffMins < 60) return `${diffMins}m ago - ${day}/${month}/${year}`
+        if (diffHours < 24) return `${diffHours}h ago - ${day}/${month}/${year}`
+        if (diffDays < 7) return `${diffDays}d ago - ${day}/${month}/${year}`
+        return `${day}/${month}/${year}`
+    } else {
+        if (diffMins < 1) return `Just now - ${day}/${month}/${year}`
+        if (diffMins < 60) return `${diffMins}m ago - ${day}/${month}/${year}`
+        if (diffHours < 24) return `${diffHours}h ${remainingMins}m ago - ${day}/${month}/${year}`
+        if (diffDays < 7) return `${diffDays}d ago - ${day}/${month}/${year}`
+        return `${day}/${month}/${year}`
+    }
+}
+
+
+
 const Dashboard = () => {
     const { user } = useUser()
     const [fileToDelete, setFileToDelete] = useState(null)
     const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+    const [viewMode, setViewMode] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('dashboardViewMode') || 'grid'
+        }
+        return 'grid'
+    })
+    // Lưu viewMode vào localStorage mỗi khi thay đổi
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('dashboardViewMode', viewMode)
+        }
+    }, [viewMode])
+
+
+    // Sort state
+    const [sortBy, setSortBy] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('dashboardSortBy') || 'date'
+        }
+        return 'date'
+    })
+    const [sortOrder, setSortOrder] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('dashboardSortOrder') || 'desc'
+        }
+        return 'desc'
+    })
+    // Lưu sort preferences
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('dashboardSortBy', sortBy)
+            localStorage.setItem('dashboardSortOrder', sortOrder)
+        }
+    }, [sortBy, sortOrder])
+
     const createUser = useMutation(api.user.createUser);
     const deleteFile = useMutation(api.fileStorage.DeleteFile);
 
@@ -67,6 +132,40 @@ const Dashboard = () => {
         }
     }
 
+    // Function để sort files
+    const getSortedFiles = (files) => {
+        if (!files) return files
+
+        const sorted = [...files].sort((a, b) => {
+            if (sortBy === 'name') {
+                // Sort by filename
+                const nameA = a.fileName.toLowerCase()
+                const nameB = b.fileName.toLowerCase()
+                return sortOrder === 'asc'
+                    ? nameA.localeCompare(nameB)
+                    : nameB.localeCompare(nameA)
+            } else {
+                // Sort by date (_creationTime)
+                return sortOrder === 'asc'
+                    ? a._creationTime - b._creationTime
+                    : b._creationTime - a._creationTime
+            }
+        })
+
+        return sorted
+    }
+
+    // Toggle sort
+    const toggleSort = (type) => {
+        if (sortBy === type) {
+            // Nếu đang sort theo type này, đổi order
+            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+        } else {
+            // Nếu sort theo type mới, set type và default desc
+            setSortBy(type)
+            setSortOrder('desc')
+        }
+    }
 
 
     // return (
@@ -99,35 +198,161 @@ const Dashboard = () => {
     // )
     return (
         <div>
-            <div className='flex justify-between items-center'>
+            <div className='flex-row items-center gap-4'>
                 <h2 className='font-medium text-3xl'>Workspace</h2>
             </div>
 
-            <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 mt-10'>
-                {fileList?.length > 0 ? fileList?.map((file, index) => (
-                    <Link key={index} href={'/workspace/' + file.fileId}>
-                        <div className='relative group flex p-5 shadow-md rounded-md flex-col items-center justify-center border cursor-pointer hover:scale-105 transition-all'>
-                            {/* Delete Button - chỉ hiện khi hover */}
-                            <button
-                                onClick={(e) => handleDeleteClick(e, file)}
-                                className='absolute -top-2 -left-2 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 z-10'
-                            >
-                                <X size={16} />
-                            </button>
+            <div className='flex justify-between items-center gap-2 border-b pt-5 pb-2'>
+                <div className='flex items-center gap-2'>
+                    {/* Sort by Name */}
+                    <button
+                        onClick={() => toggleSort('name')}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${sortBy === 'name'
+                            ? 'bg-blue-600 text-white shadow-md'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                    >
+                        <ArrowDownUp size={16} />
+                        {sortBy === 'name' && (
+                            sortOrder === 'asc' ? `A - Z` : 'Z - A'
+                        )}
+                    </button>
 
-                            {/* <Image src={'/pdf.png'} alt={file.fileName} width={100} height={100} /> */}
-                            {/* PDF Thumbnail thay vì icon */}
-                            <PDFThumbnail fileUrl={file.fileUrl} fileName={file.fileName} />
+                    {/* Sort by Date */}
+                    <button
+                        onClick={() => toggleSort('date')}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${sortBy === 'date'
+                            ? 'bg-blue-600 text-white shadow-md'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                    >
+                        <Clock size={16} />
+                        <span className='text-sm font-medium'>Date</span>
+                        {sortBy === 'date' && (
+                            sortOrder === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />
+                        )}
+                    </button>
+                </div>
 
-                            <h2 className='mt-3 font-medium text-lg text-center'>{file?.fileName}</h2>
-                        </div>
-                    </Link>
-                ))
-                    : [1, 2, 3, 4, 5].map((item, index) => (
-                        <div key={index} className='bg-slate-200 rounded-md h-[100px] animate-pulse'></div>
-                    ))
-                }
+                <div className='flex items-center gap-2'>
+                    <button
+                        onClick={() => setViewMode('grid')}
+                        className={`hover:scale-105 flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${viewMode === 'grid'
+                            ? 'bg-green-600 text-white shadow-md'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                    >
+                        <Grid3x3 size={18} />
+                        <span className='text-sm font-medium'>Grid</span>
+                    </button>
+                    <button
+                        onClick={() => setViewMode('list')}
+                        className={`hover:scale-105 flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${viewMode === 'list'
+                            ? 'bg-green-600 text-white shadow-md'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                    >
+                        <List size={18} />
+                        <span className='text-sm font-medium'>List</span>
+                    </button>
+                </div>
+
             </div>
+
+
+
+            {/* Grid View */}
+            {viewMode === 'grid' && (
+                <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-7 mt-10'>
+                    {getSortedFiles(fileList)?.length > 0 ? getSortedFiles(fileList)?.map((file, index) => (
+                        <Link key={index} href={'/workspace/' + file.fileId}>
+                            <div className='relative group flex p-5 shadow-md rounded-md flex-col items-center justify-center border border-gray-500 cursor-pointer hover:scale-105 transition-all'>
+                                {/* Delete Button - chỉ hiện khi hover */}
+                                <button
+                                    onClick={(e) => handleDeleteClick(e, file)}
+                                    className='absolute -top-2 -left-2 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 z-10'
+                                >
+                                    <X size={16} />
+                                </button>
+
+                                <PDFThumbnail
+                                    thumbnailUrl={file.thumbnailUrl}
+                                    fileName={file.fileName}
+                                />
+                                <div className='w-full mt-3'>
+                                    {/* File Name */}
+                                    <div className='h-[90px] flex justify-center items-center'>
+                                        <h2 className='font-medium text-lg text-center line-clamp-3'>
+                                            {file?.fileName}
+                                        </h2>
+                                    </div>
+
+                                    <div className='mt-3 text-xs text-gray-400 flex items-center justify-center gap-1'>
+                                        <Clock size={14} />
+                                        <span>{formatDate(file._creationTime, viewMode)}</span>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </Link>
+                    ))
+                        : [1, 2, 3, 4, 5].map((item, index) => (
+                            <div key={index} className='bg-slate-200 rounded-md h-[100px] animate-pulse'></div>
+                        ))
+                    }
+                </div>
+            )}
+
+            {/* List View */}
+            {viewMode === 'list' && (
+                <div className='flex flex-col gap-3 mt-10'>
+                    {getSortedFiles(fileList)?.length > 0 ? getSortedFiles(fileList)?.map((file, index) => (
+                        <Link key={index} href={'/workspace/' + file.fileId}>
+                            <div className='relative group flex items-center gap-4 p-4 shadow-sm rounded-lg border border-gray-400 cursor-pointer hover:shadow-md hover:bg-gray-50 hover:scale-101 transition-all'>
+                                {/* Delete Button */}
+                                <button
+                                    onClick={(e) => handleDeleteClick(e, file)}
+                                    className='absolute -top-2 -left-2 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 z-10'
+                                >
+                                    <X size={16} />
+                                </button>
+
+                                {/* Thumbnail - smaller in list view */}
+                                <div className='w-20 h-20 flex-shrink-0'>
+                                    <Image src={'/pdf.png'} alt={file.fileName} width={100} height={100} />
+                                </div>
+
+                                {/* File Info */}
+                                <div className='justify-between flex-1 min-w-0'>
+                                    <div className='flex '>
+                                        <h2 className='font-medium text-lg text-center line-clamp-3'>
+                                            {file?.fileName}
+                                        </h2>
+                                    </div>
+
+                                    <div className='mt-3 text-xs text-gray-400 flex gap-1'>
+                                        <Clock size={14} />
+                                        <span>{formatDate(file._creationTime, viewMode)}</span>
+                                    </div>
+                                </div>
+
+                                {/* Arrow indicator */}
+                                <div className='text-gray-400'>
+                                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                                        <path d="M7.5 15l5-5-5-5" stroke="currentColor" strokeWidth="2" fill="none" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </Link>
+                    ))
+                        : [1, 2, 3, 4, 5].map((item, index) => (
+                            <div key={index} className='bg-slate-200 rounded-lg h-[88px] animate-pulse'></div>
+                        ))
+                    }
+                </div>
+            )}
+
+
 
             {/* Delete Confirmation Dialog */}
             {/* Delete Confirmation Dialog */}

@@ -16,7 +16,13 @@ const WorkspaceHeader = ({ fileName }) => {
 
             <div className='flex gap-2 items-center'>
                 <Button onClick={() => setFileSave(Date.now())}>Save</Button>
-                <UserButton />
+                <UserButton
+                    appearance={{
+                        elements: {
+                            avatarBox: "w-30 h-30 border-1 border-black"
+                        }
+                    }}
+                />
 
             </div>
         </div>

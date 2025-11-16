@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+
+
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -451,4 +454,51 @@
   padding: 0.2rem 0.5rem;
   border-radius: 0.25rem;
   border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* ========== IMAGE RESIZE & ALIGN STYLES ========== */
+/* Base image styles */
+.ProseMirror img {
+  max-width: 100%;
+  height: auto;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+}
+
+/* Image alignment - dùng selector rộng hơn */
+.ProseMirror img[data-align="left"],
+.tiptap img[data-align="left"],
+img[data-align="left"] {
+  display: block !important;
+  margin-left: 0 !important;
+  margin-right: auto !important;
+}
+
+.ProseMirror img[data-align="center"],
+.tiptap img[data-align="center"],
+img[data-align="center"] {
+  display: block !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.ProseMirror img[data-align="right"],
+.tiptap img[data-align="right"],
+img[data-align="right"] {
+  display: block !important;
+  margin-left: auto !important;
+  margin-right: 0 !important;
+}
+
+/* Image selected state */
+.ProseMirror img.ProseMirror-selectednode {
+  outline: 3px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Image hover effect */
+.ProseMirror img:hover {
+  opacity: 0.9;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }

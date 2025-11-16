@@ -16,7 +16,7 @@ export const ingest = action({
             args.splitText,
             { fileId: args.fileId },
             new GoogleGenerativeAIEmbeddings({
-                apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY,
+                apiKey: process.env.GEMINI_API_KEY,
                 model: "gemini-embedding-001",
                 taskType: TaskType.RETRIEVAL_DOCUMENT,
                 title: "Document title",
@@ -26,6 +26,7 @@ export const ingest = action({
         return 'Completed...'
     },
 });
+
 
 // Search
 export const search = action({
@@ -37,7 +38,7 @@ export const search = action({
         try {
             const vectorStore = new ConvexVectorStore(
                 new GoogleGenerativeAIEmbeddings({
-                    apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY,
+                    apiKey: process.env.GEMINI_API_KEY,
                     model: "gemini-embedding-001",
                     taskType: TaskType.RETRIEVAL_DOCUMENT,
                     title: "Document title",
@@ -55,7 +56,7 @@ export const search = action({
 
             for (const query of queryVariations) {
                 console.log(`Searching with: "${query}"`);
-                const results = await vectorStore.similaritySearch(query, 5);
+                const results = await vectorStore.similaritySearch(query, 15);
 
                 // Filter by fileId hiện tại và loại bỏ các kết quả trùng lặp
                 results.forEach(result => {
@@ -70,9 +71,10 @@ export const search = action({
             console.log('Total unique results:', allResults.length);
 
             // 3. Sort by relevance and return top 10
-            const topResults = allResults.slice(0, 10);
+            const topResults = allResults.slice(0, 30);
 
             return JSON.stringify(topResults);
+
 
         } catch (error) {
             console.error('Search error:', error);
@@ -86,14 +88,21 @@ async function generateQueryVariations(originalQuery) {
     try {
         const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-        const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY);
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-        const prompt = `You are an AI assistant. Generate 2 alternative versions of the following question to help retrieve relevant documents. The alternatives should use different wording but ask for the same information.
+        const prompt = `You are an AI assistant helping to improve document search.
   
         Original question: ${originalQuery}
-  
+
+        Generate 2 alternative versions of this question that:
+        1. Use different wording but ask for the same information
+        2. Include synonyms and related terms (e.g., "definition" → "concept", "meaning", "explanation")
+        3. For questions asking for "all" or "list", also create variations that search for individual items
+        4. Consider both English and Vietnamese terms if relevant
+
         Provide ONLY 2 alternative questions, one per line. Do NOT include numbering, bullets, or explanations.`;
+
 
         const result = await model.generateContent(prompt);
         const response = result.response.text();

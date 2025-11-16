@@ -1,6 +1,6 @@
 'use client'
 import React, { useState, useEffect, useContext } from 'react'
-import { BoldIcon, ItalicIcon, UnderlineIcon, Heading1Icon, Heading2Icon, Heading3Icon, StrikethroughIcon, ListIcon, TextQuoteIcon, HighlighterIcon, AlignLeftIcon, AlignCenterIcon, AlignRightIcon, SparklesIcon, DownloadIcon } from 'lucide-react'
+import { BoldIcon, ItalicIcon, UnderlineIcon, Heading1Icon, Heading2Icon, Heading3Icon, StrikethroughIcon, ListIcon, TextQuoteIcon, HighlighterIcon, AlignLeftIcon, AlignCenterIcon, AlignRightIcon, DownloadIcon, ImageIcon } from 'lucide-react'
 import { useAction } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { useParams } from 'next/navigation'
@@ -14,6 +14,7 @@ import { chatSession } from '@/configs/AIModel'
 import Image from 'next/image'
 
 
+
 const EditorExtension = ({ editor }) => {
     const [isBold, setIsBold] = useState(false)
     const [isItalic, setIsItalic] = useState(false)
@@ -25,9 +26,14 @@ const EditorExtension = ({ editor }) => {
     const [isBulletList, setIsBulletList] = useState(false)
     const [isBlockquote, setIsBlockquote] = useState(false)
     const [isHighlight, setIsHighlight] = useState(false)
+    const [showHighlightDropdown, setShowHighlightDropdown] = useState(false)
     const [isAlignLeft, setIsAlignLeft] = useState(false)
     const [isAlignCenter, setIsAlignCenter] = useState(false)
     const [isAlignRight, setIsAlignRight] = useState(false)
+    const [isImageSelected, setIsImageSelected] = useState(false)
+    const [imageAlignLeft, setImageAlignLeft] = useState(false)
+    const [imageAlignCenter, setImageAlignCenter] = useState(false)
+    const [imageAlignRight, setImageAlignRight] = useState(false)
     useEffect(() => {
         if (!editor) return
 
@@ -46,6 +52,22 @@ const EditorExtension = ({ editor }) => {
             setIsAlignLeft(editor.isActive({ textAlign: 'left' }))
             setIsAlignCenter(editor.isActive({ textAlign: 'center' }))
             setIsAlignRight(editor.isActive({ textAlign: 'right' }))
+
+
+            const imageActive = editor.isActive('image')
+            setIsImageSelected(imageActive)
+
+            if (imageActive) {
+                const attrs = editor.getAttributes('image')
+                const align = attrs.align || 'center'
+                setImageAlignLeft(align === 'left')
+                setImageAlignCenter(align === 'center')
+                setImageAlignRight(align === 'right')
+            } else {
+                setImageAlignLeft(false)
+                setImageAlignCenter(false)
+                setImageAlignRight(false)
+            }
         }
 
         // Lắng nghe editor updates
@@ -59,12 +81,14 @@ const EditorExtension = ({ editor }) => {
         }
     }, [editor])
 
+
     //
     const { fileId } = useParams()
     const SearchAI = useAction(api.myAction.search)
     const addNotes = useMutation(api.notes.AddNotes)
     const { user } = useUser()
     const { fileSave, setFileSave } = useContext(FileSaveContext);
+
 
     // Lưu History
     const [conversationHistory, setConversationHistory] = useState([]);
@@ -81,8 +105,8 @@ const EditorExtension = ({ editor }) => {
             fileId: fileId
         })
 
-
         const UnformattedAns = JSON.parse(result)
+
 
         let formattedContext = '';
         let validChunkCount = 0;
@@ -105,6 +129,9 @@ const EditorExtension = ({ editor }) => {
             formattedContext = "[NO RELEVANT CONTEXT FOUND]";
         }
 
+
+
+
         // Build conversation history string
         let historyString = '';
         if (conversationHistory.length > 0) {
@@ -118,6 +145,26 @@ const EditorExtension = ({ editor }) => {
             });
         }
 
+        // const PROMPT = `You are a strict AI assistant for PDF question-answering.
+        // CONTEXT FROM DOCUMENT:
+        // ${formattedContext}
+        // ${historyString}
+
+        // STRICT RULES - YOU MUST FOLLOW THESE WITHOUT EXCEPTION:
+        // 1. READ the context carefully. If the context says "[NO RELEVANT CONTEXT FOUND]" or does not contain information to answer the question, you MUST respond EXACTLY with: "I cannot find information about this in the provided document."
+        // 2. NEVER use your pre-trained knowledge or general knowledge to answer.
+        // 3. You can reference information from the PREVIOUS CONVERSATION if it's relevant to the current question.
+        // 4. ONLY use information from: (a) CONTEXT above, (b) PREVIOUS CONVERSATION
+        // 5. If asking about "author", look for fields like "Student name", "By", "Written by"
+        // 6. If asking about "advisor", look for "Advisor", "Supervisor"
+        // 7. If asking about "topic", look at titles, headings, and introduction
+        // 8. Answer in the SAME LANGUAGE as the user's question.
+        // 9. Provide answer in HTML format with <mark> tags to highlight key information.
+        // Remember: It is better to say "I don't know" than to provide information not in the document or previous conversation.
+
+        // Current Question: "${selectedText}"
+
+        // Answer:`;
         const PROMPT = `You are a strict AI assistant for PDF question-answering.
         CONTEXT FROM DOCUMENT:
         ${formattedContext}
@@ -131,37 +178,99 @@ const EditorExtension = ({ editor }) => {
         5. If asking about "author", look for fields like "Student name", "By", "Written by"
         6. If asking about "advisor", look for "Advisor", "Supervisor"
         7. If asking about "topic", look at titles, headings, and introduction
-        8. Answer in the SAME LANGUAGE as the user's question.
-        9. Provide answer in HTML format with <mark> tags to highlight key information.
+        8. CRITICAL LANGUAGE RULE: Answer in the EXACT SAME LANGUAGE as the user's question. 
+            - If user asks in English → Answer in English
+            - If user asks in Vietnamese → Answer in Vietnamese
+            - If user asks in another language → Answer in that language
+            - DO NOT change language based on context language. The user's question language is the ONLY language you should use.
+        9. HANDLING COMPREHENSIVE QUESTIONS (like "show me all", "list all", "what are all"):
+        - If the question asks for ALL items (definitions, examples, concepts, etc.), you MUST:
+            * Search through ALL provided context chunks
+            * List EVERY relevant item found
+            * Organize them clearly (numbered list, bullet points, or structured format)
+            * Include page numbers references when available
+            * If multiple definitions/concepts are found, list them ALL
+        - Example: If asked "Show me all definitions", find ALL definition-like content in the context and list them all
+        10. Provide answer in HTML format with <mark> tags to highlight key information.
         Remember: It is better to say "I don't know" than to provide information not in the document or previous conversation.
-        
+        11. For comprehensive questions, use structured format like:
+        - <ol> for numbered lists
+        - <ul> for bullet points
+        - <strong> for emphasis
+        - <mark> for key terms
         Current Question: "${selectedText}"
-        
+        REMEMBER: 
+        - Match the language of the user's question, NOT the language of the context.
+        - If question asks for "all" or "list", provide COMPLETE list from ALL context chunks.
+
         Answer:`;
 
 
+
+
+
+        // const AiModelResult = await chatSession.sendMessage(PROMPT);
+        // const response = AiModelResult.response.text();
+        // console.log("AI Response:", response);
+
+        // const FinalAns = response.replace(/```html/g, '').replace(/```/g, '');
+
+        // // Update conversation history (keep last 6 messages = 3 Q&A pairs)
+        // const newHistory = [...conversationHistory, selectedText, FinalAns];
+        // const recentHistory = newHistory.slice(-6); // Keep only last 6 messages
+        // setConversationHistory(recentHistory);
+
+        // console.log("Conversation history:", recentHistory.length / 2, "Q&A pairs");
+
+        // const AllText = editor.getHTML();
+        // editor.commands.setContent(AllText + '<p> <strong>Answer: </strong>' + FinalAns + ' </p>');
+
+
+        // addNotes({
+        //     notes: editor.getHTML(),
+        //     fileId: fileId,
+        //     createdBy: user?.primaryEmailAddress?.emailAddress
+        // })
+
         const AiModelResult = await chatSession.sendMessage(PROMPT);
         const response = AiModelResult.response.text();
-        console.log("AI Response:", response);
-
         const FinalAns = response.replace(/```html/g, '').replace(/```/g, '');
 
-        // Update conversation history (keep last 6 messages = 3 Q&A pairs)
+        // 🎬 TYPING ANIMATION
+        const AllText = editor.getHTML();
+        let currentIndex = 0;
+        const typingSpeed = 10; // milliseconds per character (càng nhỏ càng nhanh)
+
+        // Function để type từng ký tự
+        const typeWriter = () => {
+            if (currentIndex < FinalAns.length) {
+                const currentText = FinalAns.substring(0, currentIndex + 1);
+                editor.commands.setContent(AllText + '<p><strong>Answer: </strong>' + currentText + '</p>');
+                currentIndex++;
+                setTimeout(typeWriter, typingSpeed);
+            } else {
+                // Khi typing xong, save vào database
+                addNotes({
+                    notes: editor.getHTML(),
+                    fileId: fileId,
+                    createdBy: user?.primaryEmailAddress?.emailAddress
+                })
+            }
+        };
+
+        // Bắt đầu animation
+        typeWriter();
+
+        // Update conversation history
         const newHistory = [...conversationHistory, selectedText, FinalAns];
-        const recentHistory = newHistory.slice(-6); // Keep only last 6 messages
+        const recentHistory = newHistory.slice(-6);
         setConversationHistory(recentHistory);
 
         console.log("Conversation history:", recentHistory.length / 2, "Q&A pairs");
 
-        const AllText = editor.getHTML();
-        editor.commands.setContent(AllText + '<p> <strong>Answer: </strong>' + FinalAns + ' </p>');
 
 
-        addNotes({
-            notes: editor.getHTML(),
-            fileId: fileId,
-            createdBy: user?.primaryEmailAddress?.emailAddress
-        })
+
     }
 
 
@@ -198,6 +307,7 @@ const EditorExtension = ({ editor }) => {
 
     return (
         <div className='p-5'>
+
             <div className="control-group">
                 <div className="button-group flex gap-3 flex-wrap">
                     {/* Heading 1 */}
@@ -300,7 +410,7 @@ const EditorExtension = ({ editor }) => {
                     </button>
 
                     {/* Highlight */}
-                    <button
+                    {/* <button
                         onClick={() => editor.chain().focus().toggleHighlight().run()}
                         className={`p-1 rounded transition-all group ${isHighlight
                             ? 'text-green-500 shadow-md'
@@ -308,7 +418,66 @@ const EditorExtension = ({ editor }) => {
                             }`}
                     >
                         <HighlighterIcon className="group-hover:scale-125 transition-transform duration-200" />
-                    </button>
+                    </button> */}
+                    {/* Highlight với dropdown */}
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowHighlightDropdown(!showHighlightDropdown)}
+                            className={`p-1 rounded transition-all group ${isHighlight
+                                ? 'text-green-500 shadow-md'
+                                : 'bg-white text-black'
+                                }`}
+                            title="Highlight Colors"
+                        >
+                            <HighlighterIcon className="group-hover:scale-125 transition-transform duration-200" />
+                        </button>
+
+                        {/* Dropdown màu - chỉ hiện khi showHighlightDropdown = true */}
+                        {showHighlightDropdown && (
+                            <div
+                                className="absolute top-full mt-1 left-[-50px] bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-50 flex gap-2"
+
+                            >
+                                {[
+                                    { bg: '#fef3c7', border: '#fbbf24', name: 'Yellow' },
+                                    { bg: '#d1fae5', border: '#10b981', name: 'Green' },
+                                    { bg: '#dbeafe', border: '#3b82f6', name: 'Blue' },
+                                    { bg: '#fee2e2', border: '#ef4444', name: 'Red' },
+                                    { bg: '#e9d5ff', border: '#a855f7', name: 'Purple' },
+                                ].map((color, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => {
+                                            editor.chain().focus().toggleHighlight({ color: color.bg }).run()
+                                            setShowHighlightDropdown(false) // Đóng dropdown sau khi chọn
+                                        }}
+                                        className={`w-6 h-6 rounded border-2 hover:scale-110 transition-transform ${editor.isActive('highlight', { color: color.bg })
+                                            ? 'ring-2 ring-offset-1 ring-green-500'
+                                            : ''
+                                            }`}
+                                        style={{
+                                            backgroundColor: color.bg,
+                                            borderColor: color.border
+                                        }}
+                                        title={`${color.name} Highlight`}
+                                    />
+                                ))}
+
+                                {/* Button xóa highlight */}
+                                <button
+                                    onClick={() => {
+                                        editor.chain().focus().unsetHighlight().run()
+                                        setShowHighlightDropdown(false)
+                                    }}
+                                    className="w-6 h-6 rounded border-2 border-gray-300 hover:scale-110 transition-transform flex items-center justify-center bg-white"
+                                    title="Remove Highlight"
+                                >
+                                    <span className="text-xs text-red-500 font-bold">✕</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
 
                     {/* Align Left */}
                     <button
@@ -337,6 +506,80 @@ const EditorExtension = ({ editor }) => {
                         <AlignRightIcon className="group-hover:scale-125 transition-transform duration-200" />
                     </button>
 
+                    {/* ========== IMAGE CONTROLS - Chỉ hiện khi select ảnh ========== */}
+                    {isImageSelected && (
+                        <>
+                            {/* Separator */}
+                            <div className="w-px h-6 bg-gray-300 mx-2" />
+
+                            {/* Image Size Buttons */}
+                            <div className="flex gap-1 items-center bg-gray-50 px-2 py-1 rounded">
+                                <button
+                                    onClick={() => editor.chain().focus().setImageWidth('25%').run()}
+                                    className="px-2 py-1 text-xs rounded hover:bg-white transition-all"
+                                    title="Small (25%)"
+                                >
+                                    25%
+                                </button>
+                                <button
+                                    onClick={() => editor.chain().focus().setImageWidth('50%').run()}
+                                    className="px-2 py-1 text-xs rounded hover:bg-white transition-all"
+                                    title="Medium (50%)"
+                                >
+                                    50%
+                                </button>
+                                <button
+                                    onClick={() => editor.chain().focus().setImageWidth('75%').run()}
+                                    className="px-2 py-1 text-xs rounded hover:bg-white transition-all"
+                                    title="Large (75%)"
+                                >
+                                    75%
+                                </button>
+                                <button
+                                    onClick={() => editor.chain().focus().setImageWidth('100%').run()}
+                                    className="px-2 py-1 text-xs rounded hover:bg-white transition-all"
+                                    title="Full (100%)"
+                                >
+                                    100%
+                                </button>
+                            </div>
+
+                            {/* Image Align Buttons - 👇 DÙNG STATE MỚI */}
+                            <button
+                                onClick={() => editor.chain().focus().setImageAlign('left').run()}
+                                className={`p-1 rounded transition-all group ${imageAlignLeft
+                                    ? 'text-green-500 shadow-md bg-green-50'
+                                    : 'bg-white text-black'
+                                    }`}
+                                title="Align Left"
+                            >
+                                <AlignLeftIcon className="group-hover:scale-125 transition-transform duration-200" />
+                            </button>
+
+                            <button
+                                onClick={() => editor.chain().focus().setImageAlign('center').run()}
+                                className={`p-1 rounded transition-all group ${imageAlignCenter
+                                    ? 'text-green-500 shadow-md bg-green-50'
+                                    : 'bg-white text-black'
+                                    }`}
+                                title="Align Center"
+                            >
+                                <AlignCenterIcon className="group-hover:scale-125 transition-transform duration-200" />
+                            </button>
+
+                            <button
+                                onClick={() => editor.chain().focus().setImageAlign('right').run()}
+                                className={`p-1 rounded transition-all group ${imageAlignRight
+                                    ? 'text-green-500 shadow-md bg-green-50'
+                                    : 'bg-white text-black'
+                                    }`}
+                                title="Align Right"
+                            >
+                                <AlignRightIcon className="group-hover:scale-125 transition-transform duration-200" />
+                            </button>
+                        </>
+                    )}
+
                     {/* Sparkles */}
                     {/* <button
                         onClick={() => onAiClick()}
@@ -344,7 +587,26 @@ const EditorExtension = ({ editor }) => {
                     >
                         <SparklesIcon className="animate-spin-float-glow " />
 
+                        
                     </button> */}
+
+
+
+
+
+                    <button
+                        onClick={() => {
+                            editor.chain().focus().setImageUploadNode().run()
+                        }}
+                        className="p-1 rounded transition-all group bg-white text-black hover:text-green-500"
+                        title="Upload Image"
+                    >
+                        <ImageIcon className="group-hover:scale-125 transition-transform duration-200" />
+                    </button>
+
+
+
+
                     <button
                         onClick={() => onAiClick()}
                         className='p-1 hover:scale-110 transition-all ml-3 cursor-pointer flex-shrink-0'
