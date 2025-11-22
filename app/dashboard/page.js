@@ -56,40 +56,76 @@ const Dashboard = () => {
     const { user } = useUser()
     const [fileToDelete, setFileToDelete] = useState(null)
     const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-    const [viewMode, setViewMode] = useState(() => {
-        if (typeof window !== 'undefined') {
-            return localStorage.getItem('dashboardViewMode') || 'grid'
-        }
-        return 'grid'
-    })
+    // ✅ FIX: Dùng mounted flag
+    const [mounted, setMounted] = useState(false)
+    // const [viewMode, setViewMode] = useState(() => {
+    //     if (typeof window !== 'undefined') {
+    //         return localStorage.getItem('dashboardViewMode') || 'grid'
+    //     }
+    //     return 'grid'
+    // })
+    // ✅ FIX: Khởi tạo với default value, load từ localStorage sau
+    const [viewMode, setViewMode] = useState('grid')
+    const [sortBy, setSortBy] = useState('date')
+    const [sortOrder, setSortOrder] = useState('desc')
+
+    // // Lưu viewMode vào localStorage mỗi khi thay đổi
+    // useEffect(() => {
+    //     if (typeof window !== 'undefined') {
+    //         localStorage.setItem('dashboardViewMode', viewMode)
+    //     }
+    // }, [viewMode])
+
+
+    // // Sort state
+    // const [sortBy, setSortBy] = useState(() => {
+    //     if (typeof window !== 'undefined') {
+    //         return localStorage.getItem('dashboardSortBy') || 'date'
+    //     }
+    //     return 'date'
+    // })
+    // const [sortOrder, setSortOrder] = useState(() => {
+    //     if (typeof window !== 'undefined') {
+    //         return localStorage.getItem('dashboardSortOrder') || 'desc'
+    //     }
+    //     return 'desc'
+    // })
+    // // Lưu sort preferences
+    // useEffect(() => {
+    //     if (typeof window !== 'undefined') {
+    //         localStorage.setItem('dashboardSortBy', sortBy)
+    //         localStorage.setItem('dashboardSortOrder', sortOrder)
+    //     }
+    // }, [sortBy, sortOrder])
+
+    // ✅ FIX: Load từ localStorage SAU KHI component mount
+    useEffect(() => {
+        setMounted(true)
+
+        // Load preferences từ localStorage
+        const savedViewMode = localStorage.getItem('dashboardViewMode')
+        const savedSortBy = localStorage.getItem('dashboardSortBy')
+        const savedSortOrder = localStorage.getItem('dashboardSortOrder')
+
+        if (savedViewMode) setViewMode(savedViewMode)
+        if (savedSortBy) setSortBy(savedSortBy)
+        if (savedSortOrder) setSortOrder(savedSortOrder)
+    }, [])
+
     // Lưu viewMode vào localStorage mỗi khi thay đổi
     useEffect(() => {
-        if (typeof window !== 'undefined') {
+        if (mounted) {
             localStorage.setItem('dashboardViewMode', viewMode)
         }
-    }, [viewMode])
+    }, [viewMode, mounted])
 
-
-    // Sort state
-    const [sortBy, setSortBy] = useState(() => {
-        if (typeof window !== 'undefined') {
-            return localStorage.getItem('dashboardSortBy') || 'date'
-        }
-        return 'date'
-    })
-    const [sortOrder, setSortOrder] = useState(() => {
-        if (typeof window !== 'undefined') {
-            return localStorage.getItem('dashboardSortOrder') || 'desc'
-        }
-        return 'desc'
-    })
     // Lưu sort preferences
     useEffect(() => {
-        if (typeof window !== 'undefined') {
+        if (mounted) {
             localStorage.setItem('dashboardSortBy', sortBy)
             localStorage.setItem('dashboardSortOrder', sortOrder)
         }
-    }, [sortBy, sortOrder])
+    }, [sortBy, sortOrder, mounted])
 
     const createUser = useMutation(api.user.createUser);
     const deleteFile = useMutation(api.fileStorage.DeleteFile);
@@ -168,34 +204,6 @@ const Dashboard = () => {
     }
 
 
-    // return (
-    //     <div>
-    //         <div className='flex justify-between items-center'>
-    //             <h2 className='font-medium text-3xl'>Workspace</h2>
-    //             <div className='w-[200px]'>
-    //                 <UploadPDF />
-    //             </div>
-    //         </div>
-
-    //         <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 mt-10'>
-    //             {fileList?.length > 0 ? fileList?.map((file, index) => (
-    //                 <Link key={index} href={'/workspace/' + file.fileId}>
-    //                     <div key={index} className='flex p-5 shadow-md rounded-md flex-col items-center justify-center border cursor-pointer hover:scale-105 transition-all'>
-    //                         <Image src={'/pdf.png'} alt={file.fileName} width={100} height={100} />
-    //                         <h2 className='mt-3 font-medium text-lg'>{file?.fileName}</h2>
-
-    //                     </div>
-    //                 </Link>
-    //             ))
-    //                 : [1, 2, 3, 4, 5].map((item, index) => (
-    //                     <div key={index} className='bg-slate-200 rounded-md h-[100px] animate-pulse'></div>
-    //                 ))
-
-    //             }
-    //         </div>
-
-    //     </div>
-    // )
     return (
         <div>
             <div className='flex-row items-center gap-4'>
@@ -207,13 +215,13 @@ const Dashboard = () => {
                     {/* Sort by Name */}
                     <button
                         onClick={() => toggleSort('name')}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${sortBy === 'name'
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${mounted && sortBy === 'name'
                             ? 'bg-blue-600 text-white shadow-md'
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }`}
                     >
                         <ArrowDownUp size={16} />
-                        {sortBy === 'name' && (
+                        {mounted && sortBy === 'name' && (
                             sortOrder === 'asc' ? `A - Z` : 'Z - A'
                         )}
                     </button>
@@ -221,14 +229,14 @@ const Dashboard = () => {
                     {/* Sort by Date */}
                     <button
                         onClick={() => toggleSort('date')}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${sortBy === 'date'
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${mounted && sortBy === 'date'
                             ? 'bg-blue-600 text-white shadow-md'
                             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }`}
                     >
                         <Clock size={16} />
                         <span className='text-sm font-medium'>Date</span>
-                        {sortBy === 'date' && (
+                        {mounted && sortBy === 'date' && (
                             sortOrder === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />
                         )}
                     </button>

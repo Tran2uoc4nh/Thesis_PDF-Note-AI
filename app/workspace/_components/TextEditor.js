@@ -1,5 +1,5 @@
 'use client'
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -18,11 +18,14 @@ import { MAX_FILE_SIZE, handleImageUpload } from '@/lib/tiptap-utils'
 import '@/components/tiptap-node/image-upload-node/image-upload-node.scss'
 import '@/components/tiptap-node/image-node/image-node.scss'
 
-const TextEditor = ({ fileId }) => {
+const TextEditor = ({ fileId, onUnsavedChanges }) => {
 
     const notes = useQuery(api.notes.GetNotes, {
         fileId: fileId
     })
+
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+    const [initialContent, setInitialContent] = useState(null)
 
     const CustomImage = Image.extend({
         addAttributes() {
@@ -108,17 +111,64 @@ const TextEditor = ({ fileId }) => {
                 // Nếu cursor ở vị trí trống, xóa tất cả marks
                 editor.commands.unsetAllMarks()
             }
+        },
+
+        // Track changes
+        onUpdate: ({ editor }) => {
+            if (initialContent && editor.getHTML() !== initialContent) {
+                setHasUnsavedChanges(true)
+                if (onUnsavedChanges) {
+                    onUnsavedChanges(true)
+                }
+            }
         }
     })
 
+    // useEffect(() => {
+    //     editor && editor.commands.setContent(notes)
+    // }, [notes && editor])
+
+    // return (
+    //     <EditorContext.Provider value={{ editor }}>
+    //         <div className='h-full flex flex-col'>
+    //             <EditorExtension editor={editor} />
+    //             <div className='flex-1 overflow-y-auto mx-5 mb-5 editor-box border bg-white'>
+    //                 <EditorContent editor={editor} role="presentation" />
+    //             </div>
+    //         </div>
+    //     </EditorContext.Provider>
+    // )
+    // Load initial content
     useEffect(() => {
-        editor && editor.commands.setContent(notes)
-    }, [notes && editor])
+        if (editor && notes) {
+            editor.commands.setContent(notes)
+            setInitialContent(notes)
+            setHasUnsavedChanges(false)
+            if (onUnsavedChanges) {
+                onUnsavedChanges(false)
+            }
+        }
+    }, [notes, editor])
+
+    // Reset unsaved changes when saved
+    useEffect(() => {
+        if (editor && !hasUnsavedChanges && editor.getHTML()) {
+            setInitialContent(editor.getHTML())
+        }
+    }, [hasUnsavedChanges])
 
     return (
         <EditorContext.Provider value={{ editor }}>
             <div className='h-full flex flex-col'>
-                <EditorExtension editor={editor} />
+                <EditorExtension
+                    editor={editor}
+                    onSave={() => {
+                        setHasUnsavedChanges(false)
+                        if (onUnsavedChanges) {
+                            onUnsavedChanges(false)
+                        }
+                    }}
+                />
                 <div className='flex-1 overflow-y-auto mx-5 mb-5 editor-box border bg-white'>
                     <EditorContent editor={editor} role="presentation" />
                 </div>

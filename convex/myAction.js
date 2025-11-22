@@ -4,7 +4,7 @@ import { action } from "./_generated/server.js";
 import { TaskType } from "@google/generative-ai";
 import { v } from "convex/values";
 
-// Ingest
+// Ingest (Chuyển PDF thành Vector Embedding)
 export const ingest = action({
     args: {
         splitText: v.any(),
@@ -28,7 +28,7 @@ export const ingest = action({
 });
 
 
-// Search
+// Search (Tìm kiếm trong Vector Embedding)
 export const search = action({
     args: {
         query: v.string(),
@@ -122,3 +122,80 @@ async function generateQueryVariations(originalQuery) {
         return [originalQuery];
     }
 }
+
+
+// Search images by analyzing uploaded image
+export const searchImageInPdf = action({
+    args: {
+        imageBase64: v.string(),
+        fileId: v.string()
+    },
+    handler: async (ctx, args) => {
+        try {
+            const { GoogleGenerativeAI } = require("@google/generative-ai");
+            const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+            // Step 1: Generate description from pasted image
+            const visionModel = genAI.getGenerativeModel({
+                model: "gemini-2.5-flash"
+            });
+
+            const descriptionPrompt = `Analyze this image and provide a detailed description. 
+            Describe:
+            - What objects, people, or elements are in the image
+            - Colors, shapes, patterns
+            - Any text visible in the image
+            - The overall context or scene
+            
+            Provide a clear, searchable description ONLY in 2-3 sentences.`;
+
+            const result = await visionModel.generateContent([
+                descriptionPrompt,
+                {
+                    inlineData: {
+                        data: args.imageBase64,
+                        mimeType: "image/jpeg"
+                    }
+                }
+            ]);
+
+            const imageDescription = result.response.text();
+            console.log("Generated description:", imageDescription);
+
+            // Step 2: Search in documents table for similar images
+            const vectorStore = new ConvexVectorStore(
+                new GoogleGenerativeAIEmbeddings({
+                    apiKey: process.env.GEMINI_API_KEY,
+                    model: "gemini-embedding-001",
+                    taskType: TaskType.RETRIEVAL_DOCUMENT,
+                }),
+                { ctx }
+            );
+
+            // Search for similar images
+            const searchResults = await vectorStore.similaritySearch(imageDescription, 10);
+
+            // Filter only image type documents from this fileId
+            const imageResults = searchResults.filter(result =>
+                result.metadata.fileId === args.fileId &&
+                result.metadata.contentType === 'visual'
+            );
+
+            console.log(`Found ${imageResults.length} matching images`);
+
+            return {
+                description: imageDescription,
+                matches: imageResults.map(result => ({
+                    page: result.metadata.page,
+                    description: result.pageContent,
+                    type: result.metadata.visualType || 'image',
+                    score: result.score
+                }))
+            };
+
+        } catch (error) {
+            console.error('Image search error:', error);
+            throw error;
+        }
+    }
+});
