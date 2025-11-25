@@ -5,27 +5,27 @@ import { TaskType } from "@google/generative-ai";
 import { v } from "convex/values";
 
 // Ingest (Chuyển PDF thành Vector Embedding)
-export const ingest = action({
-    args: {
-        splitText: v.any(),
-        fileId: v.string(),
-        metadata: v.optional(v.any())
-    },
-    handler: async (ctx, args) => {
-        await ConvexVectorStore.fromTexts(
-            args.splitText,
-            { fileId: args.fileId },
-            new GoogleGenerativeAIEmbeddings({
-                apiKey: process.env.GEMINI_API_KEY,
-                model: "gemini-embedding-001",
-                taskType: TaskType.RETRIEVAL_DOCUMENT,
-                title: "Document title",
-            }),
-            { ctx }
-        );
-        return 'Completed...'
-    },
-});
+// export const ingest = action({
+//     args: {
+//         splitText: v.any(),
+//         fileId: v.string(),
+//         metadata: v.optional(v.any())
+//     },
+//     handler: async (ctx, args) => {
+//         await ConvexVectorStore.fromTexts(
+//             args.splitText,
+//             { fileId: args.fileId },
+//             new GoogleGenerativeAIEmbeddings({
+//                 apiKey: process.env.GEMINI_API_KEY,
+//                 model: "gemini-embedding-001",
+//                 taskType: TaskType.RETRIEVAL_DOCUMENT,
+//                 title: "Document title",
+//             }),
+//             { ctx }
+//         );
+//         return 'Completed...'
+//     },
+// });
 
 
 // Search (Tìm kiếm trong Vector Embedding)
@@ -39,9 +39,9 @@ export const search = action({
             const vectorStore = new ConvexVectorStore(
                 new GoogleGenerativeAIEmbeddings({
                     apiKey: process.env.GEMINI_API_KEY,
-                    model: "gemini-embedding-001",
-                    taskType: TaskType.RETRIEVAL_DOCUMENT,
-                    title: "Document title",
+                    model: "text-embedding-004",
+                    taskType: TaskType.RETRIEVAL_QUERY,
+
                 }),
                 { ctx }
             );
@@ -166,8 +166,8 @@ export const searchImageInPdf = action({
             const vectorStore = new ConvexVectorStore(
                 new GoogleGenerativeAIEmbeddings({
                     apiKey: process.env.GEMINI_API_KEY,
-                    model: "gemini-embedding-001",
-                    taskType: TaskType.RETRIEVAL_DOCUMENT,
+                    model: "text-embedding-004",
+                    taskType: TaskType.RETRIEVAL_QUERY,
                 }),
                 { ctx }
             );
@@ -178,7 +178,7 @@ export const searchImageInPdf = action({
             // Filter only image type documents from this fileId
             const imageResults = searchResults.filter(result =>
                 result.metadata.fileId === args.fileId &&
-                result.metadata.contentType === 'visual'
+                result.metadata.source === 'gemini-vision'
             );
 
             console.log(`Found ${imageResults.length} matching images`);
@@ -186,12 +186,23 @@ export const searchImageInPdf = action({
             return {
                 description: imageDescription,
                 matches: imageResults.map(result => ({
-                    page: result.metadata.page,
-                    description: result.pageContent,
+                    page: extractPageFromContent(result.pageContent),
+                    description: cleanImageDescription(result.pageContent),
                     type: result.metadata.visualType || 'image',
                     score: result.score
                 }))
             };
+
+            // Helper function để extract page number từ content
+            function extractPageFromContent(content) {
+                const match = content.match(/\[IMAGE Page (\d+)\]/);
+                return match ? parseInt(match[1]) : null;
+            }
+
+            // Helper function để clean description
+            function cleanImageDescription(content) {
+                return content.replace(/^\[IMAGE Page \d+\]:\s*/i, '').trim();
+            }
 
         } catch (error) {
             console.error('Image search error:', error);

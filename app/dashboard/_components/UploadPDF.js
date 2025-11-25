@@ -33,7 +33,6 @@ const UploadPDF = ({ children, isMaxFile }) => {
     const [loading, setLoading] = useState(false)
     const [fileName, setFileName] = useState('')
     const [open, setOpen] = useState(false)
-
     const [includeImages, setIncludeImages] = useState(false)
     const ingestWithImages = useAction(api.ingest.ingestPdfWithImages)
 
@@ -54,62 +53,7 @@ const UploadPDF = ({ children, isMaxFile }) => {
             setFileName(defaultName)
         }
     }
-    // const OnUpload = async () => {
-    //     setLoading(true)
 
-    //     if (!file || !fileName) {
-    //         setLoading(false)
-    //         toast(!file ? 'Please select pdf' : 'Please enter filename')
-    //         return;
-    //     }
-
-    //     // 1. Get a short-lived upload URL
-    //     const postUrl = await generateUploadUrl();
-
-    //     // 2. POST the file to the URL
-    //     const result = await fetch(postUrl, {
-    //         method: "POST",
-    //         headers: { "Content-Type": file?.type },
-    //         body: file,
-    //     });
-    //     const { storageId } = await result.json()
-    //     console.log(storageId)
-    //     const fileId = uuid4()
-    //     const fileUrl = await getFileUrl({ storageId: storageId })
-
-    //     // Dùng tên file custom hoặc tên file gốc
-    //     const finalFileName = fileName.trim() || file.name.replace('.pdf', '')
-
-
-    //     // 3.Save the newly allocated storage id to the database
-    //     const resp = await addFileEntry({
-    //         filedId: fileId,
-    //         storageId: storageId,
-    //         fileName: fileName ?? 'Untitled File',
-    //         fileUrl: fileUrl,
-    //         createdBy: user?.primaryEmailAddress?.emailAddress
-    //     })
-
-
-    //     // API call to fetch the PDF Process data
-
-    //     const ApiResp = await axios.get('/api/pdf-loader?pdfUrl=' + fileUrl)
-    //     await embededDocument({
-    //         splitText: ApiResp.data.result,
-    //         fileId: fileId,
-    //         metadata: ApiResp.data.metadata
-    //     })
-
-
-    //     setLoading(false)
-    //     setOpen(false)
-    //     setFileName('') // Reset
-    //     setFile(null) // Reset
-
-    //     toast.success('File is ready', {
-    //         icon: <CircleCheckIcon size={16} className="text-emerald-600" />
-    //     })
-    // }
     const OnUpload = async () => {
         setLoading(true)
 
@@ -177,12 +121,6 @@ const UploadPDF = ({ children, isMaxFile }) => {
             })
 
             // 4. Process PDF chunks
-            // const ApiResp = await axios.get('/api/pdf-loader?pdfUrl=' + fileUrl)
-            // await embededDocument({
-            //     splitText: ApiResp.data.result,
-            //     fileId: fileId,
-            //     metadata: ApiResp.data.metadata
-            // })
             if (includeImages) {
                 // Dùng Gemini Multimodal
                 console.log('Using Gemini Multimodal approach...');

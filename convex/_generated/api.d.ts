@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as documents from "../documents.js";
 import type * as fileStorage from "../fileStorage.js";
 import type * as ingest from "../ingest.js";
 import type * as langchain_db from "../langchain/db.js";
@@ -30,6 +31,7 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  documents: typeof documents;
   fileStorage: typeof fileStorage;
   ingest: typeof ingest;
   "langchain/db": typeof langchain_db;

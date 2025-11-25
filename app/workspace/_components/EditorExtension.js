@@ -242,7 +242,7 @@ const EditorExtension = ({ editor }) => {
             validChunkCount++;
             const page = item.metadata?.page || '?';
             const chunkId = item.metadata?.chunk_id || index;
-            const header = `[C${validChunkCount}] (page ${page}, chunk ${chunkId})`;
+            const header = `[Page ${page}]`;
 
             formattedContext += `${header}\n${content}\n\n`;
         });
@@ -359,8 +359,8 @@ const EditorExtension = ({ editor }) => {
                             * Format as timeline or chronological list with page references
                             * Example format:
                             <ul>
-                                <li><mark>15/01/2024</mark> (page 5): Bắt đầu dự án</li>
-                                <li><mark>Tháng 3 năm 2024</mark> (page 12): Hoàn thành giai đoạn 1</li>
+                                <li><mark>15/01/2024</mark> (page 5): Start project</li>
+                                <li><mark>March 2024</mark> (page 12): Complete phase 1</li>
                             </ul>
 
                         11. SPECIAL HANDLING FOR STATISTICS AND NUMERICAL DATA:
@@ -372,9 +372,9 @@ const EditorExtension = ({ editor }) => {
                             * Format clearly with page references
                             * Example format:
                             <ul>
-                                <li><strong>Dân số:</strong> <mark>5.2 triệu người</mark> (page 8)</li>
-                                <li><strong>Tăng trưởng:</strong> <mark>15.3%</mark> năm 2023 (page 15)</li>
-                                <li><strong>Ngân sách:</strong> <mark>$2.5 triệu</mark> (page 22)</li>
+                                <li><strong>Population:</strong> <mark>5.2 million people</mark> (page 8)</li>
+                                <li><strong>Growth:</strong> <mark>15.3%</mark> in 2023 (page 15)</li>
+                                <li><strong>Budget:</strong> <mark>$2.5 million</mark> (page 22)</li>
                             </ul>
 
                         12. Provide answer in HTML format with <mark> tags to highlight key information (dates, numbers, names, key terms).
@@ -396,22 +396,16 @@ const EditorExtension = ({ editor }) => {
                                 - Questions the user asked multiple times or followed up on
                             * Create a structured summary categorizing by themes or topics
                             * Example format for "tóm tắt các điểm tôi quan tâm nhất":
-                            <div style="background: #f0fdf4; padding: 16px; border-radius: 8px; margin: 12px 0;">
-                                <h3>Your notes analysis:</h3>
+                            <div>
+                          
                                 <ul>
-                                    <li><strong>Topic 1:</strong> [Topic name]
-                                        <ul>
-                                            <li>You asked about: [specific questions]</li>
-                                            <li>Your notes: [user's notes on this topic]</li>
-                                            <li>Related to page: [page numbers]</li>
-                                        </ul>
-                                    </li>
-                                    <li><strong>Topic 2:</strong> [Another topic...]</li>
+                                    <li><strong>Topic 1 - [Topic name]</strong> [user's notes on this topic]</li>
+                                    ... (more topics)
                                 </ul>
                             </div>
 
                         15. COMPARING AND FINDING CONTRADICTIONS BETWEEN NOTES AND PDF:
-                        - If asked to find contradictions, differences, or inconsistencies:
+                        - If asked to find conflicts,contradictions, differences, or inconsistencies:
                             * Keywords: "mâu thuẫn", "khác biệt", "không khớp", "contradictions", "differences", "inconsistencies", "so sánh", "compare"
                             * Compare statements in PREVIOUS NOTES with information from CONTEXT FROM DOCUMENT
                             * Look for:
@@ -419,22 +413,24 @@ const EditorExtension = ({ editor }) => {
                                 - Conflicting dates or timelines
                                 - Opposite conclusions or interpretations
                                 - Missing information that user assumed or noted
+                                - Different concepts or definitions
                             * Clearly indicate source: [From Notes] vs [From PDF - Page X]
                             * Example format:
-                            <div style="background: #fef3c7; padding: 16px; border-radius: 8px; margin: 12px 0;">
-                                <h3>Compare your notes and PDF:</h3>
+                            <div>
+
                                 <ul>
-                                    <li><strong>About [Topic]:</strong>
+                                    <li>
                                         <ul>
                                             <li><strong>In your notes:</strong> [what user noted]</li>
-                                            <li><strong>In PDF (page X):</strong> [what PDF says]</li>
-                                            <li><strong>Analysis:</strong> [Are they contradictory? Why might this difference exist?]</li>
+                                            <li><strong>In PDF:</strong> [what PDF says]</li>
+                                            <li><strong> => </strong> [Are they contradictory? Why might this difference exist?]</li>
                                         </ul>
                                     </li>
-                                </ul>
-                                <p style="color: #92400e; font-size: 14px; margin-top: 12px;">
+                                     <p style="color: #92400e; font-size: 14px; margin-top: 12px;">
                                      <em>Note: These differences may be due to [possible reasons: different interpretations, user's own insights, clarifications, etc.]</em>
                                 </p>
+                                </ul>
+                               
                             </div>
                         Remember: It is better to say "I don't know" than to provide information not in the document or previous conversation.
 
@@ -445,7 +441,7 @@ const EditorExtension = ({ editor }) => {
                         - If question asks for "all", "list", "find all", "extract", provide COMPLETE extraction from ALL context chunks.
                         - For dates/events: Look for ALL time references across all chunks
                         - For statistics: Look for ALL numerical data across all chunks
-                        - ALWAYS include page numbers in your citations
+                        - CITATION FORMAT: When citing sources, ALWAYS use page numbers like "(page 5)", "(pages 5, 8, 12)" 
 
                         Answer:`;
 

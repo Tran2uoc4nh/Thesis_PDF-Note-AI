@@ -1,122 +1,441 @@
-import { action, internalMutation } from "./_generated/server";
+// "use node";
+// import { action } from "./_generated/server";
+// import { internal } from "./_generated/api";
+// import { v } from "convex/values";
+// import { GoogleGenerativeAI } from "@google/generative-ai";
+// import { PDFDocument } from "pdf-lib";
+
+// const apiKey = process.env.GEMINI_API_KEY;
+// const genAI = new GoogleGenerativeAI(apiKey);
+
+// // Embedding thường có giới hạn cao hơn Vision, nên ta có thể chạy nhanh hơn chút
+// const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
+
+// const visionModel = genAI.getGenerativeModel({
+//     model: "gemini-2.5-flash",
+//     generationConfig: { responseMimeType: "application/json", temperature: 0.1 }
+// });
+
+// export const ingestPdfWithImages = action({
+//     args: { pdfUrl: v.string(), fileId: v.string() },
+//     handler: async (ctx, args) => {
+//         const startTime = Date.now();
+//         console.log(`\n========== OPTIMIZED SPEED INGEST (Batching Strategy) ==========`);
+
+//         // 1. Tải file & Load
+//         console.log("--- Step 1: Loading PDF ---");
+//         const response = await fetch(args.pdfUrl);
+//         if (!response.ok) throw new Error("Download failed");
+//         const arrayBuffer = await response.arrayBuffer();
+//         const srcDoc = await PDFDocument.load(arrayBuffer);
+//         const totalPages = srcDoc.getPageCount();
+//         console.log(`✓ PDF Loaded: ${totalPages} pages`);
+
+//         // 2. Chuẩn bị chunks (Mỗi chunk 10 trang)
+//         const CHUNK_SIZE = 10;
+//         const tasks = [];
+//         for (let i = 0; i < totalPages; i += CHUNK_SIZE) {
+//             tasks.push({
+//                 startPage: i,
+//                 endPage: Math.min(i + CHUNK_SIZE, totalPages) - 1
+//             });
+//         }
+
+//         // ============================================
+//         // CHIẾN THUẬT 1: TĂNG TỐC VISION (BATCH 4)
+//         // ============================================
+//         // 71 trang = 8 chunks. Gửi 4 cái/lần -> Chỉ mất 2 lượt gửi.
+//         // Tổng request = 8 (Vẫn < 10 RPM limit).
+//         const VISION_CONCURRENCY = 4;
+//         const results = [];
+
+//         console.log(`--- Step 2: Vision Processing (${tasks.length} chunks) ---`);
+
+//         for (let i = 0; i < tasks.length; i += VISION_CONCURRENCY) {
+//             const batch = tasks.slice(i, i + VISION_CONCURRENCY);
+//             console.log(`🚀 Vision Batch: Processing chunks ${i + 1} to ${i + batch.length}`);
+
+//             // Chạy song song 4 chunks
+//             const batchResults = await Promise.all(
+//                 batch.map(task => processPdfChunk(srcDoc, task.startPage, task.endPage))
+//             );
+//             results.push(...batchResults);
+
+//             // Nghỉ ngắn 2s thôi (thay vì 5s)
+//             if (i + VISION_CONCURRENCY < tasks.length) {
+//                 console.log("...Wait 2s...");
+//                 await new Promise(resolve => setTimeout(resolve, 2000));
+//             }
+//         }
+
+//         // 3. Gộp kết quả
+//         console.log("--- Step 3: Merging Results ---");
+//         const allDocumentsToSave = [];
+
+//         results.forEach((res, index) => {
+//             if (!res) return;
+//             // Metadata
+//             if (index === 0 && res.documentMetadata) {
+//                 allDocumentsToSave.push({
+//                     type: "metadata",
+//                     content: `INFO:\nTitle: ${res.documentMetadata.title}\nSummary: ${res.documentMetadata.summary || 'N/A'}`,
+//                     page: 0,
+//                     metadata: { ...res.documentMetadata, fileId: args.fileId, isMetadata: true }
+//                 });
+//             }
+//             // Pages
+//             res.pages?.forEach(p => {
+//                 const realPageNum = p.pageNumber;
+//                 if (p.textContent) {
+//                     allDocumentsToSave.push({
+//                         type: "text",
+//                         content: p.textContent,
+//                         page: realPageNum,
+//                         metadata: { source: 'gemini-ocr', fileId: args.fileId, page: realPageNum }
+//                     });
+//                 }
+//                 p.visualElements?.forEach(v => {
+//                     allDocumentsToSave.push({
+//                         type: "image",
+//                         content: `[IMAGE Page ${realPageNum}]: ${v.description}`,
+//                         page: realPageNum,
+//                         metadata: { source: 'gemini-vision', type: v.type, fileId: args.fileId }
+//                     });
+//                 });
+//             });
+//         });
+
+//         // ============================================
+//         // CHIẾN THUẬT 2: TĂNG TỐC DB (BATCH 10)
+//         // ============================================
+//         // Thay vì lưu từng cái, ta lưu 10 cái một lúc.
+//         // Embedding API chịu tải tốt hơn Vision nhiều.
+//         console.log(`--- Step 4: Saving ${allDocumentsToSave.length} items in Batches ---`);
+
+//         const DB_BATCH_SIZE = 5; // Xử lý 10 dòng cùng lúc
+//         let savedCount = 0;
+
+//         for (let i = 0; i < allDocumentsToSave.length; i += DB_BATCH_SIZE) {
+//             const batch = allDocumentsToSave.slice(i, i + DB_BATCH_SIZE);
+
+//             // Chạy song song cả Embedding và Save cho 5 item này
+//             await Promise.all(batch.map(async (doc) => {
+//                 try {
+//                     const embeddingResp = await embeddingModel.embedContent(doc.content);
+//                     await ctx.runMutation(internal.documents.saveDocument, {
+//                         type: doc.type,
+//                         text: doc.content,
+//                         embedding: embeddingResp.embedding.values,
+//                         metadata: doc.metadata
+//                     });
+//                     savedCount++;
+//                 } catch (err) {
+//                     console.error(`Error saving doc:`, err.message);
+//                 }
+//             }));
+
+//             console.log(`  -> Batch saved (${savedCount}/${allDocumentsToSave.length})`);
+
+//             // Nghỉ 1 giây sau mỗi lô 10 cái (An toàn mà vẫn nhanh gấp 10 lần cũ)
+//             await new Promise(resolve => setTimeout(resolve, 3000));
+//         }
+
+//         const duration = ((Date.now() - startTime) / 1000).toFixed(0);
+//         console.log(`\n========== DONE in ${duration}s : ${savedCount} saved ==========`);
+//         return { success: true, saved: savedCount, duration };
+//     }
+// });
+
+"use node";
+import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { PDFDocument } from "pdf-lib";
 
 const apiKey = process.env.GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey);
 
-// Model để generate embeddings
-const embeddingModel = genAI.getGenerativeModel({
-    model: "gemini-embedding-001",
-});
+// !!! ĐỔI SANG MODEL 004 ĐỂ ÍT BỊ LỖI HƠN !!!
+const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
 
-// Model để analyze PDF với vision
 const visionModel = genAI.getGenerativeModel({
     model: "gemini-2.5-flash",
-    generationConfig: {                        // ← THÊM PHẦN NÀY
-        responseMimeType: "application/json",  // ← JSON MODE
-        temperature: 0.1,                      // ← THÊM
-    }
-
+    generationConfig: { responseMimeType: "application/json", temperature: 0.1 }
 });
 
-// ===== HELPER: Convert ArrayBuffer to Base64 (không dùng Buffer) =====
-function arrayBufferToBase64(buffer) {
-    const bytes = new Uint8Array(buffer);
-    let binary = '';
-    const len = bytes.byteLength;
-
-    // Process in chunks to avoid call stack size exceeded
-    const chunkSize = 8192;
-    for (let i = 0; i < len; i += chunkSize) {
-        const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
-        binary += String.fromCharCode.apply(null, chunk);
-    }
-
-    // Use btoa for base64 encoding (Web API, có trong Convex)
-    return btoa(binary);
-}
-
-// ===== ACTION CHÍNH =====
 export const ingestPdfWithImages = action({
-    args: {
-        pdfUrl: v.string(),
-        fileId: v.string(),
-    },
+    args: { pdfUrl: v.string(), fileId: v.string() },
     handler: async (ctx, args) => {
-        console.log(`\n========== CONVEX INGEST WITH MULTIMODAL START ==========`);
-        console.log(`File ID: ${args.fileId}`);
-        console.log(`PDF URL: ${args.pdfUrl}`);
+        const startTime = Date.now();
+        console.log(`\n========== INGEST FINAL (Sequential Fast) ==========`);
 
-        try {
-            // 1. Download PDF từ URL
-            console.log('\n--- Step 1: Downloading PDF ---');
-            const response = await fetch(args.pdfUrl);
+        // 1. Tải file & Load
+        console.log("--- Step 1: Loading PDF ---");
+        const response = await fetch(args.pdfUrl);
+        if (!response.ok) throw new Error("Download failed");
+        const arrayBuffer = await response.arrayBuffer();
+        const srcDoc = await PDFDocument.load(arrayBuffer);
+        const totalPages = srcDoc.getPageCount();
+        console.log(`✓ PDF Loaded: ${totalPages} pages`);
 
-            if (!response.ok) {
-                throw new Error(`Failed to download PDF: ${response.status}`);
+        // CẤU HÌNH VISION (Đọc PDF)
+        // Phần này không bị lỗi nên giữ nguyên tốc độ cao
+        let VISION_CONFIG;
+        if (totalPages < 80) {
+            VISION_CONFIG = { BATCH: 100, SLEEP: 0 }; // File nhỏ: Max tốc độ
+        } else {
+            VISION_CONFIG = { BATCH: 4, SLEEP: 2000 }; // File to: An toàn
+        }
+
+        // 2. Chuẩn bị chunks
+        const CHUNK_SIZE = 10;
+        const tasks = [];
+        for (let i = 0; i < totalPages; i += CHUNK_SIZE) {
+            tasks.push({
+                startPage: i,
+                endPage: Math.min(i + CHUNK_SIZE, totalPages) - 1
+            });
+        }
+
+        // ============================================
+        // STEP 2: VISION PROCESSING (Giữ nguyên)
+        // ============================================
+        const results = [];
+        console.log(`--- Step 2: Vision Processing (${tasks.length} chunks) ---`);
+
+        for (let i = 0; i < tasks.length; i += VISION_CONFIG.BATCH) {
+            const batch = tasks.slice(i, i + VISION_CONFIG.BATCH);
+            console.log(`🚀 Vision Batch: ${batch.length} chunks...`);
+
+            const batchResults = await Promise.all(
+                batch.map(task => processPdfChunk(srcDoc, task.startPage, task.endPage))
+            );
+            results.push(...batchResults);
+
+            if (i + VISION_CONFIG.BATCH < tasks.length && VISION_CONFIG.SLEEP > 0) {
+                await new Promise(resolve => setTimeout(resolve, VISION_CONFIG.SLEEP));
             }
+        }
 
-            const arrayBuffer = await response.arrayBuffer();
+        // 3. Gộp kết quả
+        console.log("--- Step 3: Merging Results ---");
+        const allDocumentsToSave = [];
+        results.forEach((res, index) => {
+            if (!res) return;
+            if (index === 0 && res.documentMetadata) {
+                // SỬA ĐOẠN NÀY: Thêm tableOfContents vào content
+                const meta = res.documentMetadata;
+                const tocContent = meta.tableOfContents ? `\n\nTABLE OF CONTENTS:\n${meta.tableOfContents}` : "";
+                allDocumentsToSave.push({
+                    type: "metadata",
+                    content: `INFO:\nTitle: ${meta.title}\nSummary: ${meta.summary || 'N/A'}${tocContent}`,
+                    page: 0,
+                    metadata: { ...res.documentMetadata, fileId: args.fileId, isMetadata: true }
+                });
+            }
+            res.pages?.forEach(p => {
+                const realPageNum = p.pageNumber;
+                if (p.textContent) {
+                    allDocumentsToSave.push({
+                        type: "text",
+                        content: p.textContent,
+                        page: realPageNum,
+                        metadata: { source: 'gemini-ocr', fileId: args.fileId, page: realPageNum }
+                    });
+                }
+                p.visualElements?.forEach(v => {
+                    allDocumentsToSave.push({
+                        type: "image",
+                        content: `[IMAGE Page ${realPageNum}]: ${v.description}`,
+                        page: realPageNum,
+                        metadata: { source: 'gemini-vision', type: v.type, fileId: args.fileId }
+                    });
+                });
+            });
+        });
 
-            console.log(`✓ Downloaded: ${arrayBuffer.byteLength} bytes`);
+        // ============================================
+        // STEP 4: SAVING (THAY ĐỔI CHIẾN THUẬT: SEQUENTIAL)
+        // ============================================
+        // Không dùng Promise.all nữa. Lưu từng cái một nhưng nghỉ cực ít.
+        // Cách này đảm bảo không bao giờ bị Burst Limit.
+        console.log(`--- Step 4: Saving ${allDocumentsToSave.length} items (Sequential Fast) ---`);
 
-            // 2. Convert to base64 (KHÔNG DÙNG BUFFER)
-            console.log('\n--- Step 2: Converting to base64 ---');
-            const base64Pdf = arrayBufferToBase64(arrayBuffer);
-            console.log(`✓ Converted to base64: ${base64Pdf.length} characters`);
+        let savedCount = 0;
 
-            // 3. Analyze PDF với Gemini Vision (inline data)
-            console.log('\n--- Step 3: Analyzing with Gemini Vision ---');
+        // Dùng vòng lặp for...of để chạy tuần tự
+        for (const doc of allDocumentsToSave) {
+            try {
+                const embeddingResp = await embeddingModel.embedContent(doc.content);
+                await ctx.runMutation(internal.documents.saveDocument, {
+                    type: doc.type,
+                    text: doc.content,
+                    embedding: embeddingResp.embedding.values,
+                    metadata: doc.metadata
+                });
+                savedCount++;
 
-            // const prompt = `
-            // Phân tích toàn bộ file PDF này và trích xuất nội dung theo cấu trúc sau:
+                if (savedCount % 10 === 0) process.stdout.write(`.`); // In dấu chấm cho gọn log
 
-            // Với mỗi trang, hãy:
-            // 1. Trích xuất TẤT CẢ văn bản
-            // 2. Mô tả chi tiết BẤT KỲ hình ảnh, biểu đồ, bảng biểu, sơ đồ nào
+                // NGHỈ CỰC NGẮN (0.2s) SAU MỖI CÁI
+                // Giống như bắn tỉa: Pằng... Pằng... Pằng...
+                // Thay vì súng máy: Pằng pằng pằng pằng (Bị chặn)
+                await new Promise(resolve => setTimeout(resolve, 200));
 
-            // Trả về kết quả theo định dạng JSON như sau:
-            // {
-            // "pages": [
-            //     {
-            //     "pageNumber": 1,
-            //     "textContent": "Toàn bộ văn bản trang 1...",
-            //     "visualElements": [
-            //         {
-            //         "type": "chart|diagram|table|image|graph",
-            //         "description": "Mô tả chi tiết nội dung visual element này"
-            //         }
-            //     ]
-            //     }
-            // ]
-            // }
+            } catch (err) {
+                console.error(`\nError saving index ${savedCount}:`, err.message);
+                // Nếu vẫn bị lỗi thì nghỉ lâu hơn xíu rồi chạy tiếp
+                if (err.message.includes('429')) {
+                    console.log("⚠️ Limit hit. Pausing 5s...");
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
+            }
+        }
 
-            // QUY TẮC:
-            // - Giữ nguyên ngôn ngữ gốc của văn bản
-            // - Mô tả visual elements bằng tiếng Việt, chi tiết
-            // - Nếu không có visual elements, để mảng rỗng []
-            // - Output phải là JSON hợp lệ, KHÔNG thêm markdown backticks
-            // `;
-            const prompt = `
-            Analyze this PDF document thoroughly and extract:
+        const duration = ((Date.now() - startTime) / 1000).toFixed(0);
+        console.log(`\n========== DONE in ${duration}s : ${savedCount} saved ==========`);
+        return { success: true, saved: savedCount, duration };
+    }
+});
 
-            1. **Document Metadata** (look at cover page, title page, headers):
-            - Title: The main title of the document
-            - Author: Who wrote/created this document (look for "By", "Author", "Written by", student name)
-            - Date/Year: When was it created
-            - Institution: School, university, organization
-            - Document Type: thesis, report, paper, book, manual, etc.
-            - Degree: If it's a thesis, what degree (Bachelor, Master, PhD)
-            - Department: Which department/school
 
-            2. **Page Content**:
-            - All text from each page
-            - Visual elements (charts, diagrams, tables, images)
+// ===== HÀM WORKER XỬ LÝ 1 MẢNH PDF =====
+// async function processPdfChunk(srcDoc, startPage, endPage) {
+//     try {
+//         const subDoc = await PDFDocument.create();
+//         const indices = [];
+//         for (let j = startPage; j <= endPage; j++) indices.push(j);
 
-            Return JSON with this exact structure:
-            {
+//         const copiedPages = await subDoc.copyPages(srcDoc, indices);
+//         copiedPages.forEach((page) => subDoc.addPage(page));
+
+//         const pdfBytes = await subDoc.save();
+//         const base64Chunk = Buffer.from(pdfBytes).toString('base64');
+
+//         // Logic Prompt: Chỉ lấy Metadata ở chunk đầu tiên
+//         const isFirstChunk = startPage === 0;
+
+//         const prompt = `
+//         Analyze this PDF chunk (Pages ${startPage + 1} to ${endPage + 1}).
+
+//         ${isFirstChunk ? `
+//         1. **Document Metadata** (look at cover page, title page, headers):
+//            - Title: The main title of the document
+//            - Author: Who wrote/created this document (look for "By", "Author", "Written by", student name)
+//            - Date/Year: When was it created
+//            - Institution: School, university, organization
+//            - Document Type: thesis, report, paper, book, manual, etc.
+//            - Degree: If it's a thesis, what degree (Bachelor, Master, PhD)
+//            - Department: Which department/school
+//         ` : `
+//         1. **Document Metadata**: IGNORE THIS STEP (This is not the first chunk).
+//         `}
+
+//         2. **Page Content**:
+//            - All text from each page
+//            - Visual elements (charts, diagrams, tables, images, graphs, figures)
+
+//         Return JSON with this exact structure:  
+//         {
+//             ${isFirstChunk ? `
+//             "documentMetadata": {
+//                 "title": "Full document title",
+//                 "author": "Author full name",
+//                 "year": "Year",
+//                 "institution": "Institution name",
+//                 "department": "Department name",
+//                 "documentType": "thesis|report|paper|etc",
+//                 "degree": "Bachelor|Master|PhD or empty",
+//                 "location": "City, Country"
+//             },
+//             ` : ""} 
+//             "pages": [
+//                 {
+//                 "pageNumber": 1, // USE REAL PAGE NUMBER (Start from ${startPage + 1})
+//                 "textContent": "All text from page...",
+//                 "visualElements": [
+//                     {
+//                     "type": "chart|diagram|table|image|graph|figure",
+//                     "description": "Describe the content of this visual element in detail."
+//                     }
+//                 ]
+//                 }
+//             ]
+//         }
+
+//         CRITICAL RULES:
+//         ${isFirstChunk ? `- Look carefully at the FIRST PAGE for metadata` : ""}
+//         - Extract metadata fields even if you need to infer from context.
+//         - Keep original text language.
+//         - Describe visuals in English.
+
+//         **JSON FORMATTING RULES:**
+//         - Output raw JSON only. DO NOT use markdown code blocks.
+//         - Escape all double quotes within strings (e.g., use \\" instead of ").
+//         - Do not include trailing commas.
+//         - Ensure "pageNumber" corresponds to the actual document page number provided in instructions.
+//         `;
+
+//         // Gọi Gemini (Tạo instance mới để tránh xung đột)
+//         const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY).getGenerativeModel({
+//             model: "gemini-2.5-flash",
+//             generationConfig: { responseMimeType: "application/json" }
+//         });
+
+//         const result = await model.generateContent([
+//             { inlineData: { data: base64Chunk, mimeType: "application/pdf" } },
+//             prompt
+//         ]);
+
+//         const responseText = result.response.text();
+
+//         // Clean & Parse JSON
+//         try {
+//             const cleanedResponse = responseText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+//             return JSON.parse(cleanedResponse);
+//         } catch (parseError) {
+//             console.error(`JSON Parse Error at chunk ${startPage}-${endPage}:`, parseError.message);
+//             return { pages: [] };
+//         }
+//     } catch (e) {
+//         console.error(`Error processing chunk ${startPage}-${endPage}:`, e.message);
+//         return { pages: [] };
+//     }
+// }
+
+// ===== HÀM WORKER XỬ LÝ 1 MẢNH PDF (ĐÃ NÂNG CẤP XỬ LÝ MỤC LỤC) =====
+async function processPdfChunk(srcDoc, startPage, endPage) {
+    try {
+        const subDoc = await PDFDocument.create();
+        const indices = [];
+        for (let j = startPage; j <= endPage; j++) indices.push(j);
+        const copiedPages = await subDoc.copyPages(srcDoc, indices);
+        copiedPages.forEach((page) => subDoc.addPage(page));
+        const pdfBytes = await subDoc.save();
+        const base64Chunk = Buffer.from(pdfBytes).toString('base64');
+
+        // Logic Prompt: Chỉ lấy Metadata ở chunk đầu tiên
+        const isFirstChunk = startPage === 0;
+
+        const prompt = `
+        Analyze this PDF chunk (Pages ${startPage + 1} to ${endPage + 1}).
+
+        ${isFirstChunk ? `
+        1. **Document Metadata & Structure** (look at cover page, title page, headers):
+           - Title, Author, Year, Institution, Document Type, Degree, Department
+           - **Table of Contents (TOC)**: Look for the "Table of Contents" or "Index" section. Extract the FULL structure (Chapter titles, main sections) into a single string. If it spans multiple pages in this chunk, COMBINE them.
+        ` : `
+        1. **Document Metadata**: IGNORE THIS STEP (This is not the first chunk).
+        `}
+
+        2. **Page Content**:
+           - All text from each page.
+           - Visual elements (charts, diagrams, tables, images, graphs, figures).
+
+        Return JSON with this exact structure:  
+        {
+            ${isFirstChunk ? `
             "documentMetadata": {
                 "title": "Full document title",
                 "author": "Author full name",
@@ -125,288 +444,48 @@ export const ingestPdfWithImages = action({
                 "department": "Department name",
                 "documentType": "thesis|report|paper|etc",
                 "degree": "Bachelor|Master|PhD or empty",
-                "location": "City, Country"
+                "location": "City, Country",
+                "tableOfContents": "FULL extracted text of the Table of Contents (combine multiple pages if needed)" 
             },
+            ` : ""} 
             "pages": [
                 {
-                "pageNumber": 1,
-                "textContent": "All text from page 1",
-                "visualElements": [
-                    {
-                    "type": "chart|diagram|table|image|graph",
-                    "description": "Describe the content of this visual element in detail."
-                    }
-                ]
+                "pageNumber": 1, 
+                "textContent": "All text from page...",
+                "visualElements": [ { "type": "chart|diagram|table|image|graph|figure", "description": "..." } ]
                 }
             ]
-            }
-
-            CRITICAL RULES:
-            - Look carefully at the FIRST PAGE for metadata
-            - For author: search for "By", "Author:", "Student:", name after title
-            - Extract metadata fields even if you need to infer from context
-            - If a field is not found, use empty string ""
-            - Keep original text language
-            - Describe visuals in English
-            `;
-
-
-            const result = await visionModel.generateContent([
-                {
-                    inlineData: {
-                        data: base64Pdf,
-                        mimeType: "application/pdf"
-                    }
-                },
-                prompt
-            ]);
-
-            const responseText = result.response.text();
-            console.log(`✓ Received response: ${responseText.length} characters`);
-
-            // 4. Parse JSON
-            console.log('\n--- Step 4: Parsing JSON ---');
-            let extractedData;
-
-            try {
-                const cleanedResponse = responseText
-                    .replace(/```json\s*/g, '')
-                    .replace(/```\s*/g, '')
-                    .trim();
-
-                extractedData = JSON.parse(cleanedResponse);
-                console.log(`✓ Parsed successfully: ${extractedData.pages?.length || 0} pages`);
-
-            } catch (parseError) {
-                console.error('JSON parse error:', parseError);
-                console.log('Raw response (first 500 chars):', responseText.substring(0, 500));
-                throw new Error(`Failed to parse JSON: ${parseError.message}`);
-            }
-
-            // 5. Convert to documents array
-            // console.log('\n--- Step 5: Processing documents ---');
-            // const documents = [];
-            // let totalVisualElements = 0;
-            console.log('\n--- Step 5: Processing document metadata ---');
-            const documents = [];
-
-            if (extractedData.documentMetadata) {
-                const meta = extractedData.documentMetadata;
-
-                // Build rich metadata text for better searchability
-                const metadataTexts = [];
-
-                // Version 1: Full formal description
-                const formalDesc = `
-THÔNG TIN TÀI LIỆU
-
-Đây là tài liệu về "${meta.title || 'Không có tiêu đề'}".
-
-Tác giả: ${meta.author || 'Không rõ'}
-${meta.author ? `Tài liệu này được viết bởi ${meta.author}.` : ''}
-${meta.author ? `${meta.author} là tác giả của tài liệu này.` : ''}
-
-Loại tài liệu: ${meta.documentType || 'Không rõ'}
-${meta.degree ? `Đây là luận văn ${meta.degree}.` : ''}
-
-Tổ chức: ${meta.institution || 'Không rõ'}
-${meta.department ? `Khoa/Trường: ${meta.department}` : ''}
-${meta.location ? `Địa điểm: ${meta.location}` : ''}
-
-Năm: ${meta.year || 'Không rõ'}
-${meta.year ? `Tài liệu được hoàn thành vào năm ${meta.year}.` : ''}
-
-Tiêu đề đầy đủ: ${meta.title || 'Không có'}
-    `.trim();
-
-                // Version 2: Q&A format for better search matching
-                const qaFormat = `
-CÂU HỎI VÀ TRẢ LỜI VỀ TÀI LIỆU:
-
-Q: Ai là tác giả của tài liệu này?
-A: Tác giả là ${meta.author || 'không rõ'}.
-
-Q: Ai viết tài liệu này?
-A: ${meta.author || 'Không rõ'} viết tài liệu này.
-
-Q: Tên tác giả?
-A: ${meta.author || 'Không rõ'}
-
-Q: Tiêu đề tài liệu là gì?
-A: "${meta.title || 'Không có tiêu đề'}"
-
-Q: Đây là loại tài liệu gì?
-A: Đây là ${meta.documentType || 'tài liệu'}${meta.degree ? ` ${meta.degree}` : ''}.
-
-Q: Tài liệu này về chủ đề gì?
-A: ${meta.title || 'Không rõ chủ đề'}
-
-Q: Trường nào?
-A: ${meta.institution || 'Không rõ'}
-
-Q: Năm nào?
-A: Năm ${meta.year || 'không rõ'}
-    `.trim();
-
-                // Add both versions as separate searchable documents
-                documents.push({
-                    type: "metadata",
-                    content: formalDesc,
-                    page: 0,
-                    metadata: {
-                        source: 'document-metadata',
-                        contentType: 'metadata-formal',
-                        isDocumentInfo: true,
-                        ...meta
-                    }
-                });
-
-                documents.push({
-                    type: "metadata",
-                    content: qaFormat,
-                    page: 0,
-                    metadata: {
-                        source: 'document-metadata',
-                        contentType: 'metadata-qa',
-                        isDocumentInfo: true,
-                        ...meta
-                    }
-                });
-
-                console.log('✓ Document metadata extracted:');
-                console.log(`  - Title: ${meta.title || 'N/A'}`);
-                console.log(`  - Author: ${meta.author || 'N/A'}`);
-                console.log(`  - Institution: ${meta.institution || 'N/A'}`);
-                console.log(`  - Year: ${meta.year || 'N/A'}`);
-            } else {
-                console.log('⚠️ No document metadata found');
-            }
-
-            // 6. Convert pages to documents (GIỮ NGUYÊN CODE CŨ)
-            let totalVisualElements = 0;
-
-            extractedData.pages?.forEach(page => {
-                const pageNum = page.pageNumber || 0;
-
-                // Add text content
-                if (page.textContent && page.textContent.trim()) {
-                    documents.push({
-                        type: "text",
-                        content: page.textContent.trim(),
-                        page: pageNum,
-                        metadata: {
-                            source: 'gemini-extraction',
-                            contentType: 'text'
-                        }
-                    });
-                }
-
-                // Add visual elements
-                if (page.visualElements && Array.isArray(page.visualElements)) {
-                    page.visualElements.forEach((element, idx) => {
-                        if (element.description && element.description.trim()) {
-                            documents.push({
-                                type: "image",
-                                content: `[${element.type || 'Visual element'} - Page ${pageNum}]\n${element.description}`,
-                                page: pageNum,
-                                metadata: {
-                                    source: 'gemini-vision',
-                                    contentType: 'visual',
-                                    visualType: element.type || 'unknown',
-                                    elementIndex: idx
-                                }
-                            });
-                            totalVisualElements++;
-                        }
-                    });
-                }
-            });
-
-            console.log(`✓ Created ${documents.length} documents`);
-            console.log(`  - Text: ${documents.length - totalVisualElements}`);
-            console.log(`  - Visual: ${totalVisualElements}`);
-
-            // 6. Generate embeddings và save
-            console.log('\n--- Step 6: Generating embeddings and saving ---');
-            let savedCount = 0;
-            let errorCount = 0;
-
-            for (let i = 0; i < documents.length; i++) {
-                const doc = documents[i];
-
-                try {
-                    console.log(`Processing ${i + 1}/${documents.length}: ${doc.type} (page ${doc.page})`);
-
-                    // Generate embedding
-                    const embeddingResult = await embeddingModel.embedContent(doc.content);
-                    const embedding = embeddingResult.embedding.values;
-
-                    // Save to database
-                    await ctx.runMutation(internal.ingest.saveDocument, {
-                        type: doc.type,
-                        text: doc.content,
-                        embedding: Array.from(embedding),
-                        metadata: {
-                            ...doc.metadata,
-                            page: doc.page,
-                            fileId: args.fileId
-                        },
-                    });
-
-                    savedCount++;
-
-                } catch (err) {
-                    console.error(`  ✗ Error processing document ${i + 1}:`, err.message);
-                    errorCount++;
-                }
-
-                // Rate limiting
-                if (i < documents.length - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                }
-            }
-
-            console.log(`\n--- Summary ---`);
-            console.log(`✓ Saved: ${savedCount}`);
-            console.log(`✗ Errors: ${errorCount}`);
-            console.log(`========== CONVEX INGEST COMPLETE ==========\n`);
-
-            return {
-                success: true,
-                saved: savedCount,
-                errors: errorCount,
-                total: documents.length,
-                statistics: {
-                    totalPages: extractedData.pages?.length || 0,
-                    textDocuments: documents.length - totalVisualElements,
-                    visualDocuments: totalVisualElements
-                }
-            };
-
-        } catch (error) {
-            console.error('\n❌ INGEST ERROR:', error);
-            console.error('Stack:', error.stack);
-            throw error;
         }
-    },
-});
 
-// ===== MUTATION ĐỂ LƯU VÀO DB =====
-export const saveDocument = internalMutation({
-    args: {
-        type: v.string(),
-        text: v.string(),
-        embedding: v.array(v.float64()),
-        metadata: v.any(),
-        imageUrl: v.optional(v.string()),
-    },
-    handler: async (ctx, args) => {
-        await ctx.db.insert("documents", {
-            type: args.type,
-            text: args.text,
-            embedding: args.embedding,
-            metadata: args.metadata,
-            imageUrl: args.imageUrl,
+        CRITICAL RULES:
+        ${isFirstChunk ? `- Look carefully at the FIRST PAGE for metadata` : ""}
+        - Extract metadata fields even if you need to infer from context.
+        - **IMPORTANT:** The "tableOfContents" field in metadata must contain the complete list of chapters/sections found in this chunk.
+        - Keep original text language.
+        
+        **JSON FORMATTING RULES:**
+        - Output raw JSON only. DO NOT use markdown code blocks.
+        - Escape all double quotes within strings (e.g., use \\" instead of ").
+        `;
+
+        // ... (Phần gọi model và parse JSON giữ nguyên) ...
+        const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY).getGenerativeModel({
+            model: "gemini-2.5-flash",
+            generationConfig: { responseMimeType: "application/json" }
         });
-    },
-});
+
+        const result = await model.generateContent([
+            { inlineData: { data: base64Chunk, mimeType: "application/pdf" } },
+            prompt
+        ]);
+        const responseText = result.response.text();
+        try {
+            const cleanedResponse = responseText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+            return JSON.parse(cleanedResponse);
+        } catch (parseError) {
+            return { pages: [] };
+        }
+    } catch (e) {
+        return { pages: [] };
+    }
+}
