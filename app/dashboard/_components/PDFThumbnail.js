@@ -19,13 +19,6 @@ const PDFThumbnail = ({ thumbnailUrl, fileName }) => {
     }
 
     return (
-        // <div className='w-full h-[140px] relative overflow-hidden rounded-lg border border-gray-200 bg-white'>
-        //     <iframe
-        //         src={`${thumbnailUrl}#page=1&view=FitH&scrollbars=0`}
-        //         className='w-full h-full pointer-events-none'
-        //         onError={() => setImageError(true)}
-        //     />
-        // </div>
         <div className='w-full h-[140px] relative overflow-hidden rounded-lg border border-gray-200 bg-white'>
             <iframe
                 src={`${thumbnailUrl}#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=0`}

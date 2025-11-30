@@ -156,7 +156,7 @@ const EditorExtension = ({ editor }) => {
             if (result.matches && result.matches.length > 0) {
 
 
-                responseHtml += `<p><strong style="color: #15803d;">It's in this PDF ! Here are (some)results you can reference:</strong></p>
+                responseHtml += `<p><strong style="color: #15803d;">It's in this PDF ! Here are (some) results you can reference:</strong></p>
                 <ul>`
 
                 const cleanDescription = (desc) => {
