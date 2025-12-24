@@ -276,7 +276,7 @@ const UploadPDF = ({ children, isMaxFile }) => {
     const [loading, setLoading] = useState(false)
     const [fileName, setFileName] = useState('')
     const [open, setOpen] = useState(false)
-    const [includeImages, setIncludeImages] = useState(false)
+    const [includeImages, setIncludeImages] = useState(true)
     const ingestWithImages = useAction(api.ingest.ingestPdfWithImages)
 
     // ========== THÊM STATES CHO LOADING EFFECT ==========
@@ -499,21 +499,13 @@ const UploadPDF = ({ children, isMaxFile }) => {
             })
 
             // 4. Process PDF chunks
-            if (includeImages) {
-                console.log('Using Gemini Multimodal approach...');
-                await ingestWithImages({
-                    pdfUrl: fileUrl,
-                    fileId: fileId
-                });
-            } else {
-                console.log('Using text-only approach...');
-                const ApiResp = await axios.get('/api/pdf-loader?pdfUrl=' + encodeURIComponent(fileUrl))
-                await embededDocument({
-                    splitText: ApiResp.data.result,
-                    fileId: fileId,
-                    metadata: ApiResp.data.metadata
-                })
-            }
+
+            console.log('Using Gemini Multimodal approach...');
+            await ingestWithImages({
+                pdfUrl: fileUrl,
+                fileId: fileId
+            });
+
 
             // ========== KHI XONG: JUMP LÊN 100% ==========
             setProgress(100)
@@ -575,7 +567,7 @@ const UploadPDF = ({ children, isMaxFile }) => {
                                         </div>
                                         <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
                                             <div
-                                                className="bg-gradient-to-r from-blue-700 via-yellow-300 to-orange-400 h-full rounded-full transition-all duration-500 ease-out"
+                                                className="bg-gradient-to-r from-blue-700  to-orange-400 h-full rounded-full transition-all duration-500 ease-out"
                                                 style={{ width: `${progress}%` }}
                                             />
                                         </div>
@@ -602,15 +594,15 @@ const UploadPDF = ({ children, isMaxFile }) => {
 
                                     {/* Estimated Time */}
                                     <p className="text-xs text-gray-500 text-center">
-                                        ⏱️ Estimated time: ~{includeImages ? '1-2' : '1'} minute(s) | Hang tight, we're working hard! 💪
+                                        ⏱️ Estimated time: 2-3 minutes | Hang tight, we're working hard! 💪
                                     </p>
                                 </div>
                             ) : (
                                 <>
                                     {/* ========== UPLOAD FORM ========== */}
                                     {/* Box tick */}
-                                    <div className='mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg'>
-                                        <label className='flex items-start space-x-3 cursor-pointer'>
+                                    {/* <div className='mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg'>
+                                        {/* <label className='flex items-start space-x-3 cursor-pointer'>
                                             <input
                                                 type="checkbox"
                                                 checked={includeImages}
@@ -625,8 +617,8 @@ const UploadPDF = ({ children, isMaxFile }) => {
                                                     <span className='font-medium'> Takes another 30-60 seconds</span>
                                                 </p>
                                             </div>
-                                        </label>
-                                    </div>
+                                        </label> */}
+                                    {/* </div> */}
 
                                     <h2 className='mt-5'>Select a file to upload</h2>
                                     <div className='gap-2 p-3 rounded-md border'>

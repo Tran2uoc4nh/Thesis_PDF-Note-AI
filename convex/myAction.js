@@ -29,36 +29,94 @@ import { v } from "convex/values";
 
 
 // Search (Tìm kiếm trong Vector Embedding)
+// export const search = action({
+//     args: {
+//         query: v.string(),
+//         fileId: v.string()
+//     },
+//     handler: async (ctx, args) => {
+//         try {
+//             const vectorStore = new ConvexVectorStore(
+//                 new GoogleGenerativeAIEmbeddings({
+//                     apiKey: process.env.GEMINI_API_KEY,
+//                     model: "text-embedding-004",
+//                     taskType: TaskType.RETRIEVAL_QUERY,
+
+//                 }),
+//                 { ctx }
+//             );
+
+//             // 1. Generate multiple query variations using Gemini
+//             const queryVariations = await generateQueryVariations(args.query);
+//             console.log('Query variations:', queryVariations);
+
+//             // 2. Search with all variations
+//             const allResults = [];
+//             const seenIds = new Set();
+
+//             for (const query of queryVariations) {
+//                 console.log(`Searching with: "${query}"`);
+//                 const results = await vectorStore.similaritySearch(query, 15);
+
+//                 // Filter by fileId hiện tại và loại bỏ các kết quả trùng lặp
+//                 results.forEach(result => {
+//                     const id = `${result.metadata.page}-${result.pageContent.substring(0, 50)}`;
+//                     if (result.metadata.fileId === args.fileId && !seenIds.has(id)) {
+//                         seenIds.add(id);
+//                         allResults.push(result);
+//                     }
+//                 });
+//             }
+
+//             console.log('Total unique results:', allResults.length);
+
+//             // 3. Sort by relevance and return top 10
+//             const topResults = allResults.slice(0, 30);
+
+//             return JSON.stringify(topResults);
+
+
+//         } catch (error) {
+//             console.error('Search error:', error);
+//             throw error;
+//         }
+//     },
+// });
+
+
+// Search (Tìm kiếm trong Vector Embedding) - VỚI LATENCY METRICS
 export const search = action({
     args: {
         query: v.string(),
         fileId: v.string()
     },
     handler: async (ctx, args) => {
+        // ========== START TIMING ==========
+        const startTotal = Date.now();
+
         try {
             const vectorStore = new ConvexVectorStore(
                 new GoogleGenerativeAIEmbeddings({
                     apiKey: process.env.GEMINI_API_KEY,
                     model: "text-embedding-004",
                     taskType: TaskType.RETRIEVAL_QUERY,
-
                 }),
                 { ctx }
             );
 
-            // 1. Generate multiple query variations using Gemini
+            // 1. Generate query variations
+            const startVariation = Date.now();
             const queryVariations = await generateQueryVariations(args.query);
-            console.log('Query variations:', queryVariations);
+            const variationTime = Date.now() - startVariation;
 
             // 2. Search with all variations
+            const startSearch = Date.now();
             const allResults = [];
             const seenIds = new Set();
 
             for (const query of queryVariations) {
-                console.log(`Searching with: "${query}"`);
                 const results = await vectorStore.similaritySearch(query, 15);
 
-                // Filter by fileId hiện tại và loại bỏ các kết quả trùng lặp
                 results.forEach(result => {
                     const id = `${result.metadata.page}-${result.pageContent.substring(0, 50)}`;
                     if (result.metadata.fileId === args.fileId && !seenIds.has(id)) {
@@ -67,14 +125,22 @@ export const search = action({
                     }
                 });
             }
+            const searchTime = Date.now() - startSearch;
 
-            console.log('Total unique results:', allResults.length);
-
-            // 3. Sort by relevance and return top 10
+            // 3. Get top results
             const topResults = allResults.slice(0, 30);
 
-            return JSON.stringify(topResults);
+            // ========== LOG METRICS ==========
+            const totalTime = Date.now() - startTotal;
+            console.log('\n========== 📊 RAG METRICS ==========');
+            console.log(`Query: "${args.query.substring(0, 50)}..."`);
+            console.log(`Query Expansion: ${variationTime}ms (${queryVariations.length} variations)`);
+            console.log(`Vector Search: ${searchTime}ms`);
+            console.log(`TOTAL: ${totalTime}ms`);
+            console.log(`Results: ${allResults.length} chunks retrieved`);
+            console.log('=====================================\n');
 
+            return JSON.stringify(topResults);
 
         } catch (error) {
             console.error('Search error:', error);
@@ -82,6 +148,13 @@ export const search = action({
         }
     },
 });
+
+
+
+
+
+
+
 
 // Hàm generate query variations
 async function generateQueryVariations(originalQuery) {

@@ -1,151 +1,3 @@
-// "use node";
-// import { action } from "./_generated/server";
-// import { internal } from "./_generated/api";
-// import { v } from "convex/values";
-// import { GoogleGenerativeAI } from "@google/generative-ai";
-// import { PDFDocument } from "pdf-lib";
-
-// const apiKey = process.env.GEMINI_API_KEY;
-// const genAI = new GoogleGenerativeAI(apiKey);
-
-// // Embedding thường có giới hạn cao hơn Vision, nên ta có thể chạy nhanh hơn chút
-// const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
-
-// const visionModel = genAI.getGenerativeModel({
-//     model: "gemini-2.5-flash",
-//     generationConfig: { responseMimeType: "application/json", temperature: 0.1 }
-// });
-
-// export const ingestPdfWithImages = action({
-//     args: { pdfUrl: v.string(), fileId: v.string() },
-//     handler: async (ctx, args) => {
-//         const startTime = Date.now();
-//         console.log(`\n========== OPTIMIZED SPEED INGEST (Batching Strategy) ==========`);
-
-//         // 1. Tải file & Load
-//         console.log("--- Step 1: Loading PDF ---");
-//         const response = await fetch(args.pdfUrl);
-//         if (!response.ok) throw new Error("Download failed");
-//         const arrayBuffer = await response.arrayBuffer();
-//         const srcDoc = await PDFDocument.load(arrayBuffer);
-//         const totalPages = srcDoc.getPageCount();
-//         console.log(`✓ PDF Loaded: ${totalPages} pages`);
-
-//         // 2. Chuẩn bị chunks (Mỗi chunk 10 trang)
-//         const CHUNK_SIZE = 10;
-//         const tasks = [];
-//         for (let i = 0; i < totalPages; i += CHUNK_SIZE) {
-//             tasks.push({
-//                 startPage: i,
-//                 endPage: Math.min(i + CHUNK_SIZE, totalPages) - 1
-//             });
-//         }
-
-//         // ============================================
-//         // CHIẾN THUẬT 1: TĂNG TỐC VISION (BATCH 4)
-//         // ============================================
-//         // 71 trang = 8 chunks. Gửi 4 cái/lần -> Chỉ mất 2 lượt gửi.
-//         // Tổng request = 8 (Vẫn < 10 RPM limit).
-//         const VISION_CONCURRENCY = 4;
-//         const results = [];
-
-//         console.log(`--- Step 2: Vision Processing (${tasks.length} chunks) ---`);
-
-//         for (let i = 0; i < tasks.length; i += VISION_CONCURRENCY) {
-//             const batch = tasks.slice(i, i + VISION_CONCURRENCY);
-//             console.log(`🚀 Vision Batch: Processing chunks ${i + 1} to ${i + batch.length}`);
-
-//             // Chạy song song 4 chunks
-//             const batchResults = await Promise.all(
-//                 batch.map(task => processPdfChunk(srcDoc, task.startPage, task.endPage))
-//             );
-//             results.push(...batchResults);
-
-//             // Nghỉ ngắn 2s thôi (thay vì 5s)
-//             if (i + VISION_CONCURRENCY < tasks.length) {
-//                 console.log("...Wait 2s...");
-//                 await new Promise(resolve => setTimeout(resolve, 2000));
-//             }
-//         }
-
-//         // 3. Gộp kết quả
-//         console.log("--- Step 3: Merging Results ---");
-//         const allDocumentsToSave = [];
-
-//         results.forEach((res, index) => {
-//             if (!res) return;
-//             // Metadata
-//             if (index === 0 && res.documentMetadata) {
-//                 allDocumentsToSave.push({
-//                     type: "metadata",
-//                     content: `INFO:\nTitle: ${res.documentMetadata.title}\nSummary: ${res.documentMetadata.summary || 'N/A'}`,
-//                     page: 0,
-//                     metadata: { ...res.documentMetadata, fileId: args.fileId, isMetadata: true }
-//                 });
-//             }
-//             // Pages
-//             res.pages?.forEach(p => {
-//                 const realPageNum = p.pageNumber;
-//                 if (p.textContent) {
-//                     allDocumentsToSave.push({
-//                         type: "text",
-//                         content: p.textContent,
-//                         page: realPageNum,
-//                         metadata: { source: 'gemini-ocr', fileId: args.fileId, page: realPageNum }
-//                     });
-//                 }
-//                 p.visualElements?.forEach(v => {
-//                     allDocumentsToSave.push({
-//                         type: "image",
-//                         content: `[IMAGE Page ${realPageNum}]: ${v.description}`,
-//                         page: realPageNum,
-//                         metadata: { source: 'gemini-vision', type: v.type, fileId: args.fileId }
-//                     });
-//                 });
-//             });
-//         });
-
-//         // ============================================
-//         // CHIẾN THUẬT 2: TĂNG TỐC DB (BATCH 10)
-//         // ============================================
-//         // Thay vì lưu từng cái, ta lưu 10 cái một lúc.
-//         // Embedding API chịu tải tốt hơn Vision nhiều.
-//         console.log(`--- Step 4: Saving ${allDocumentsToSave.length} items in Batches ---`);
-
-//         const DB_BATCH_SIZE = 5; // Xử lý 10 dòng cùng lúc
-//         let savedCount = 0;
-
-//         for (let i = 0; i < allDocumentsToSave.length; i += DB_BATCH_SIZE) {
-//             const batch = allDocumentsToSave.slice(i, i + DB_BATCH_SIZE);
-
-//             // Chạy song song cả Embedding và Save cho 5 item này
-//             await Promise.all(batch.map(async (doc) => {
-//                 try {
-//                     const embeddingResp = await embeddingModel.embedContent(doc.content);
-//                     await ctx.runMutation(internal.documents.saveDocument, {
-//                         type: doc.type,
-//                         text: doc.content,
-//                         embedding: embeddingResp.embedding.values,
-//                         metadata: doc.metadata
-//                     });
-//                     savedCount++;
-//                 } catch (err) {
-//                     console.error(`Error saving doc:`, err.message);
-//                 }
-//             }));
-
-//             console.log(`  -> Batch saved (${savedCount}/${allDocumentsToSave.length})`);
-
-//             // Nghỉ 1 giây sau mỗi lô 10 cái (An toàn mà vẫn nhanh gấp 10 lần cũ)
-//             await new Promise(resolve => setTimeout(resolve, 3000));
-//         }
-
-//         const duration = ((Date.now() - startTime) / 1000).toFixed(0);
-//         console.log(`\n========== DONE in ${duration}s : ${savedCount} saved ==========`);
-//         return { success: true, saved: savedCount, duration };
-//     }
-// });
-
 "use node";
 import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
@@ -156,13 +8,93 @@ import { PDFDocument } from "pdf-lib";
 const apiKey = process.env.GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey);
 
-// !!! ĐỔI SANG MODEL 004 ĐỂ ÍT BỊ LỖI HƠN !!!
+
 const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
 
 const visionModel = genAI.getGenerativeModel({
     model: "gemini-2.5-flash",
     generationConfig: { responseMimeType: "application/json", temperature: 0.1 }
 });
+
+// ===== ƯỚC TÍNH TOKEN (GIỐNG PDF-LOADER) =====
+function estimateTokens(text) {
+    if (!text) return 0;
+    const charCount = text.length;
+    const wordCount = text.split(/\s+/).length;
+    const charBasedTokens = charCount / 3.5;
+    const wordBasedTokens = wordCount * 1.3;
+    return Math.ceil((charBasedTokens + wordBasedTokens) / 2);
+}
+
+// ===== RECURSIVE CHARACTER TEXT SPLITTER (GIỐNG PDF-LOADER) =====
+function splitTextIntoChunks(text, chunkSize = 800, overlap = 200) {
+    if (!text || estimateTokens(text) <= chunkSize) {
+        return text ? [text] : [];
+    }
+
+    // Separators theo thứ tự ưu tiên (giống pdf-loader)
+    const separators = [
+        "\n\n## ", "\n\n# ", "\n\n",  // Headers & Paragraphs
+        "\n", ". ", "? ", "! ",        // Lines & Sentences
+        " ", ""                         // Words & Characters
+    ];
+
+    const chunks = [];
+    let currentChunk = "";
+
+    // Tìm separator phù hợp nhất
+    function findBestSeparator(str) {
+        for (const sep of separators) {
+            if (sep && str.includes(sep)) {
+                return sep;
+            }
+        }
+        return "";
+    }
+
+    // Split text bằng separator tốt nhất
+    const bestSep = findBestSeparator(text);
+    const parts = bestSep ? text.split(bestSep) : text.split("");
+
+    for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        const potentialChunk = currentChunk
+            ? currentChunk + bestSep + part
+            : part;
+
+        if (estimateTokens(potentialChunk) <= chunkSize) {
+            currentChunk = potentialChunk;
+        } else {
+            // Lưu chunk hiện tại
+            if (currentChunk.trim().length > 10) {
+                chunks.push(currentChunk.trim());
+            }
+
+            // Bắt đầu chunk mới với overlap
+            if (overlap > 0 && currentChunk.length > overlap) {
+                // Lấy phần cuối của chunk cũ làm overlap
+                const overlapText = currentChunk.slice(-overlap);
+                currentChunk = overlapText + bestSep + part;
+            } else {
+                currentChunk = part;
+            }
+
+            // Nếu part vẫn quá dài, recursive split
+            if (estimateTokens(currentChunk) > chunkSize) {
+                const subChunks = splitTextIntoChunks(currentChunk, chunkSize, overlap);
+                chunks.push(...subChunks.slice(0, -1));
+                currentChunk = subChunks[subChunks.length - 1] || "";
+            }
+        }
+    }
+
+    // Đừng quên chunk cuối
+    if (currentChunk.trim().length > 10) {
+        chunks.push(currentChunk.trim());
+    }
+
+    return chunks;
+}
 
 export const ingestPdfWithImages = action({
     args: { pdfUrl: v.string(), fileId: v.string() },
@@ -234,14 +166,44 @@ export const ingestPdfWithImages = action({
                     metadata: { ...res.documentMetadata, fileId: args.fileId, isMetadata: true }
                 });
             }
+            // res.pages?.forEach(p => {
+            //     const realPageNum = p.pageNumber;
+            //     if (p.textContent) {
+            //         allDocumentsToSave.push({
+            //             type: "text",
+            //             content: p.textContent,
+            //             page: realPageNum,
+            //             metadata: { source: 'gemini-ocr', fileId: args.fileId, page: realPageNum }
+            //         });
+            //     }
+            //     p.visualElements?.forEach(v => {
+            //         allDocumentsToSave.push({
+            //             type: "image",
+            //             content: `[IMAGE Page ${realPageNum}]: ${v.description}`,
+            //             page: realPageNum,
+            //             metadata: { source: 'gemini-vision', type: v.type, fileId: args.fileId }
+            //         });
+            //     });
+            // });
+            // MỚI (thay thế dòng 89-98):
             res.pages?.forEach(p => {
                 const realPageNum = p.pageNumber;
                 if (p.textContent) {
-                    allDocumentsToSave.push({
-                        type: "text",
-                        content: p.textContent,
-                        page: realPageNum,
-                        metadata: { source: 'gemini-ocr', fileId: args.fileId, page: realPageNum }
+                    // ===== CHIA TEXT THÀNH CHUNKS NHỎ =====
+                    const textChunks = splitTextIntoChunks(p.textContent, 800, 200);
+                    textChunks.forEach((chunk, chunkIndex) => {
+                        allDocumentsToSave.push({
+                            type: "text",
+                            content: chunk,
+                            page: realPageNum,
+                            metadata: {
+                                source: 'gemini-ocr',
+                                fileId: args.fileId,
+                                page: realPageNum,
+                                chunk_id: chunkIndex,
+                                total_chunks: textChunks.length
+                            }
+                        });
                     });
                 }
                 p.visualElements?.forEach(v => {
@@ -450,7 +412,7 @@ async function processPdfChunk(srcDoc, startPage, endPage) {
             ` : ""} 
             "pages": [
                 {
-                "pageNumber": 1, 
+                "pageNumber": ${startPage + 1}, 
                 "textContent": "All text from page...",
                 "visualElements": [ { "type": "chart|diagram|table|image|graph|figure", "description": "..." } ]
                 }
@@ -462,7 +424,7 @@ async function processPdfChunk(srcDoc, startPage, endPage) {
         - Extract metadata fields even if you need to infer from context.
         - **IMPORTANT:** The "tableOfContents" field in metadata must contain the complete list of chapters/sections found in this chunk.
         - Keep original text language.
-        
+        - **PAGE NUMBERING**: The first page in this chunk is page ${startPage + 1}. Number pages sequentially from there (${startPage + 1}, ${startPage + 2}, ${startPage + 3}...).
         **JSON FORMATTING RULES:**
         - Output raw JSON only. DO NOT use markdown code blocks.
         - Escape all double quotes within strings (e.g., use \\" instead of ").

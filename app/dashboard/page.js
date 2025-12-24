@@ -69,34 +69,6 @@ const Dashboard = () => {
     const [sortBy, setSortBy] = useState('date')
     const [sortOrder, setSortOrder] = useState('desc')
 
-    // // Lưu viewMode vào localStorage mỗi khi thay đổi
-    // useEffect(() => {
-    //     if (typeof window !== 'undefined') {
-    //         localStorage.setItem('dashboardViewMode', viewMode)
-    //     }
-    // }, [viewMode])
-
-
-    // // Sort state
-    // const [sortBy, setSortBy] = useState(() => {
-    //     if (typeof window !== 'undefined') {
-    //         return localStorage.getItem('dashboardSortBy') || 'date'
-    //     }
-    //     return 'date'
-    // })
-    // const [sortOrder, setSortOrder] = useState(() => {
-    //     if (typeof window !== 'undefined') {
-    //         return localStorage.getItem('dashboardSortOrder') || 'desc'
-    //     }
-    //     return 'desc'
-    // })
-    // // Lưu sort preferences
-    // useEffect(() => {
-    //     if (typeof window !== 'undefined') {
-    //         localStorage.setItem('dashboardSortBy', sortBy)
-    //         localStorage.setItem('dashboardSortOrder', sortOrder)
-    //     }
-    // }, [sortBy, sortOrder])
 
     // ✅ FIX: Load từ localStorage SAU KHI component mount
     useEffect(() => {
@@ -270,12 +242,16 @@ const Dashboard = () => {
 
 
             {/* Grid View */}
-            {viewMode === 'grid' && (
-                <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-7 mt-10'>
+            {/* {viewMode === 'grid' && (
+                <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-10 mt-10'>
                     {getSortedFiles(fileList)?.length > 0 ? getSortedFiles(fileList)?.map((file, index) => (
                         <Link key={index} href={'/workspace/' + file.fileId}>
-                            <div className='relative group flex p-5 shadow-md rounded-md flex-col items-center justify-center border border-gray-500 cursor-pointer hover:scale-105 transition-all'>
-                                {/* Delete Button - chỉ hiện khi hover */}
+                            <div className='relative group flex p-5 shadow-md rounded-md flex-col items-center justify-center border border-gray-500 cursor-pointer hover:scale-105 transition-all'> */}
+            {viewMode === 'grid' && (
+                <div className='flex flex-wrap gap-10 mt-10 justify-start'>
+                    {getSortedFiles(fileList)?.length > 0 ? getSortedFiles(fileList)?.map((file, index) => (
+                        <Link key={index} href={'/workspace/' + file.fileId}>
+                            <div className='w-[250px] relative group flex p-5 shadow-md rounded-md flex-col items-center justify-center border border-gray-500 cursor-pointer hover:scale-105 transition-all'>
                                 <button
                                     onClick={(e) => handleDeleteClick(e, file)}
                                     className='absolute -top-2 -left-2 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 z-10'
@@ -290,7 +266,7 @@ const Dashboard = () => {
                                 <div className='w-full mt-3'>
                                     {/* File Name */}
                                     <div className='h-[90px] flex justify-center items-center'>
-                                        <h2 className='font-medium text-lg text-center line-clamp-3'>
+                                        <h2 className='font-medium text-lg text-center line-clamp-3 break-words overflow-wrap-anywhere'>
                                             {file?.fileName}
                                         </h2>
                                     </div>

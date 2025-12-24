@@ -123,21 +123,6 @@ const TextEditor = ({ fileId, onUnsavedChanges }) => {
             }
         }
     })
-
-    // useEffect(() => {
-    //     editor && editor.commands.setContent(notes)
-    // }, [notes && editor])
-
-    // return (
-    //     <EditorContext.Provider value={{ editor }}>
-    //         <div className='h-full flex flex-col'>
-    //             <EditorExtension editor={editor} />
-    //             <div className='flex-1 overflow-y-auto mx-5 mb-5 editor-box border bg-white'>
-    //                 <EditorContent editor={editor} role="presentation" />
-    //             </div>
-    //         </div>
-    //     </EditorContext.Provider>
-    // )
     // Load initial content
     useEffect(() => {
         if (editor && notes) {
@@ -161,6 +146,7 @@ const TextEditor = ({ fileId, onUnsavedChanges }) => {
         <EditorContext.Provider value={{ editor }}>
             <div className='h-full flex flex-col'>
                 <EditorExtension
+                    hasUnsavedChanges={hasUnsavedChanges}
                     editor={editor}
                     onSave={() => {
                         setHasUnsavedChanges(false)

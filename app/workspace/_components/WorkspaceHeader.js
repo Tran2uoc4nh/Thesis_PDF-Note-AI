@@ -1,36 +1,3 @@
-// import React, { useContext } from 'react'
-// import Image from 'next/image'
-// import { UserButton } from '@clerk/nextjs'
-// import Link from 'next/link'
-// import { FileSaveContext } from '@/app/_context/FileSaveContext'
-// import { Button } from '@/components/ui/button'
-// const WorkspaceHeader = ({ fileName }) => {
-//     const { fileSave, setFileSave } = useContext(FileSaveContext);
-//     return (
-//         <div className='flex justify-between items-center p-5 shadow-md'>
-//             <Link href='/dashboard'>
-//                 <Image src='/logo3.svg' alt='logo' width={140} height={100} />
-//             </Link>
-
-//             <h2 className='font-bold'> {fileName}</h2>
-
-//             <div className='flex gap-2 items-center'>
-//                 <Button onClick={() => setFileSave(Date.now())}>Save</Button>
-//                 <UserButton
-//                     appearance={{
-//                         elements: {
-//                             avatarBox: "w-30 h-30 border-1 border-black"
-//                         }
-//                     }}
-//                 />
-
-//             </div>
-//         </div>
-//     )
-// }
-
-// export default WorkspaceHeader
-
 'use client'
 import React, { useContext, useState, useEffect } from 'react'
 import Image from 'next/image'
@@ -92,7 +59,7 @@ const WorkspaceHeader = ({ fileName, hasUnsavedChanges, onSave }) => {
 
                 <h2 className='font-bold'> {fileName}</h2>
 
-                <div className='flex gap-2 items-center'>
+                <div className='flex gap-6 items-center'>
                     <Button onClick={() => setFileSave(Date.now())}>Save</Button>
                     <UserButton
                         appearance={{
@@ -108,7 +75,7 @@ const WorkspaceHeader = ({ fileName, hasUnsavedChanges, onSave }) => {
             <AlertDialog open={showDialog} onOpenChange={setShowDialog}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>💾 Save changes ?</AlertDialogTitle>
+                        <AlertDialogTitle>Save changes ?</AlertDialogTitle>
                         <AlertDialogDescription>
                             You have unsaved changes. Would you like to save before leaving this page?
                         </AlertDialogDescription>

@@ -12,7 +12,7 @@ export default defineSchema({
         storageId: v.string(),
         fileName: v.string(),
         fileUrl: v.string(),
-        thumbnailStorageId: v.optional(v.string()),  // Thêm dòng này
+        thumbnailStorageId: v.optional(v.string()),
         thumbnailUrl: v.optional(v.string()),
         createdBy: v.string()
     }),
@@ -20,10 +20,9 @@ export default defineSchema({
         embedding: v.array(v.number()),
         text: v.string(),
         metadata: v.any(),
-        // --- CÁC TRƯỜNG MỚI ---
-        type: v.string(), // "text" hoặc "image"
+        type: v.string(),
         imageUrl: v.optional(v.string()) // URL của ảnh gốc (nếu type là "image")
-        // --- HẾT TRƯỜNG MỚI ---
+
     }).vectorIndex("byEmbedding", {
         vectorField: "embedding",
         dimensions: 768,

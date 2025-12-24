@@ -79,7 +79,7 @@ function UpgragePlan() {
                 <span className="text-gray-700"> Unlimited Notes Taking </span>
               </li>
 
-              <li className="flex items-center gap-1">
+              {/* <li className="flex items-center gap-1">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
@@ -107,7 +107,7 @@ function UpgragePlan() {
                 </svg>
 
                 <span className="text-gray-700"> Help center access </span>
-              </li>
+              </li> */}
 
             </ul>
 
@@ -195,7 +195,7 @@ function UpgragePlan() {
                 <span className="text-gray-700"> Unlimited Notes Taking </span>
               </li>
 
-              <li className="flex items-center gap-1">
+              {/* <li className="flex items-center gap-1">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
@@ -223,7 +223,7 @@ function UpgragePlan() {
                 </svg>
 
                 <span className="text-gray-700"> Help center access </span>
-              </li>
+              </li> */}
             </ul>
 
             {!GetUserInfo?.upgrade && (

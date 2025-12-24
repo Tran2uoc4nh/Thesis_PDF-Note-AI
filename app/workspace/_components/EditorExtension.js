@@ -13,10 +13,19 @@ import { saveAs } from 'file-saver';
 import { chatSession } from '@/configs/AIModel'
 import Image from 'next/image'
 import { SparklesIcon } from 'lucide-react'
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 
-
-const EditorExtension = ({ editor }) => {
+const EditorExtension = ({ editor, hasUnsavedChanges, onSave }) => {
     const [isBold, setIsBold] = useState(false)
     const [isItalic, setIsItalic] = useState(false)
     const [isUnderline, setIsUnderline] = useState(false)
@@ -36,6 +45,7 @@ const EditorExtension = ({ editor }) => {
     const [imageAlignCenter, setImageAlignCenter] = useState(false)
     const [imageAlignRight, setImageAlignRight] = useState(false)
     const [isProcessingImage, setIsProcessingImage] = useState(false)
+    const [showSaveDialog, setShowSaveDialog] = useState(false)
     useEffect(() => {
         if (!editor) return
 
@@ -187,7 +197,7 @@ const EditorExtension = ({ editor }) => {
 
                 responseHtml += `</ul>`
             } else {
-                responseHtml += `<p><strong style="color: #dc2626;">❌ It seems this image is not in this PDF.</strong></p>
+                responseHtml += `<p><strong style="color: #dc2626;">It seems this image is not in this PDF.</strong></p>
                 `
             }
 
@@ -250,22 +260,6 @@ const EditorExtension = ({ editor }) => {
         if (!formattedContext.trim()) {
             formattedContext = "[NO RELEVANT CONTEXT FOUND]";
         }
-
-
-
-
-        // Build conversation history string
-        // let historyString = '';
-        // if (conversationHistory.length > 0) {
-        //     historyString = '\n\nPREVIOUS CONVERSATION:\n';
-        //     conversationHistory.forEach((msg, i) => {
-        //         if (i % 2 === 0) {
-        //             historyString += `User: ${msg}\n`;
-        //         } else {
-        //             historyString += `Assistant: ${msg}\n\n`;
-        //         }
-        //     });
-        // }
         // Build conversation history from existing notes in editor
         let historyString = '';
         const currentEditorContent = editor.getText(); // Lấy toàn bộ text từ editor (không có HTML tags)
@@ -283,45 +277,7 @@ const EditorExtension = ({ editor }) => {
         }
 
 
-        // const PROMPT = `You are a strict AI assistant for PDF question-answering.
-        // CONTEXT FROM DOCUMENT:
-        // ${formattedContext}
-        // ${historyString}
 
-        // STRICT RULES - YOU MUST FOLLOW THESE WITHOUT EXCEPTION:
-        // 1. READ the context carefully. If the context says "[NO RELEVANT CONTEXT FOUND]" or does not contain information to answer the question, you MUST respond EXACTLY with: "I cannot find information about this in the provided document."
-        // 2. NEVER use your pre-trained knowledge or general knowledge to answer.
-        // 3. You can reference information from the PREVIOUS CONVERSATION if it's relevant to the current question.
-        // 4. ONLY use information from: (a) CONTEXT above, (b) PREVIOUS CONVERSATION
-        // 5. If asking about "author", look for fields like "Student name", "By", "Written by"
-        // 6. If asking about "advisor", look for "Advisor", "Supervisor"
-        // 7. If asking about "topic", look at titles, headings, and introduction
-        // 8. CRITICAL LANGUAGE RULE: Answer in the EXACT SAME LANGUAGE as the user's question. 
-        //     - If user asks in English → Answer in English
-        //     - If user asks in Vietnamese → Answer in Vietnamese
-        //     - If user asks in another language → Answer in that language
-        //     - DO NOT change language based on context language. The user's question language is the ONLY language you should use.
-        // 9. HANDLING COMPREHENSIVE QUESTIONS (like "show me all", "list all", "what are all"):
-        // - If the question asks for ALL items (definitions, examples, concepts, etc.), you MUST:
-        //     * Search through ALL provided context chunks
-        //     * List EVERY relevant item found
-        //     * Organize them clearly (numbered list, bullet points, or structured format)
-        //     * Include page numbers references when available
-        //     * If multiple definitions/concepts are found, list them ALL
-        // - Example: If asked "Show me all definitions", find ALL definition-like content in the context and list them all
-        // 10. Provide answer in HTML format with <mark> tags to highlight key information.
-        // Remember: It is better to say "I don't know" than to provide information not in the document or previous conversation.
-        // 11. For comprehensive questions, use structured format like:
-        // - <ol> for numbered lists
-        // - <ul> for bullet points
-        // - <strong> for emphasis
-        // - <mark> for key terms
-        // Current Question: "${selectedText}"
-        // REMEMBER: 
-        // - Match the language of the user's question, NOT the language of the context.
-        // - If question asks for "all" or "list", provide COMPLETE list from ALL context chunks.
-
-        // Answer:`;
 
         const PROMPT = `You are a strict AI assistant for PDF question-answering.
                         CONTEXT FROM DOCUMENT:
@@ -397,7 +353,6 @@ const EditorExtension = ({ editor }) => {
                             * Create a structured summary categorizing by themes or topics
                             * Example format for "tóm tắt các điểm tôi quan tâm nhất":
                             <div>
-                          
                                 <ul>
                                     <li><strong>Topic 1 - [Topic name]</strong> [user's notes on this topic]</li>
                                     ... (more topics)
@@ -417,7 +372,6 @@ const EditorExtension = ({ editor }) => {
                             * Clearly indicate source: [From Notes] vs [From PDF - Page X]
                             * Example format:
                             <div>
-
                                 <ul>
                                     <li>
                                         <ul>
@@ -428,7 +382,7 @@ const EditorExtension = ({ editor }) => {
                                     </li>
                                      <p style="color: #92400e; font-size: 14px; margin-top: 12px;">
                                      <em>Note: These differences may be due to [possible reasons: different interpretations, user's own insights, clarifications, etc.]</em>
-                                </p>
+                                     </p>
                                 </ul>
                                
                             </div>
@@ -474,13 +428,14 @@ const EditorExtension = ({ editor }) => {
         // Bắt đầu animation
         typeWriter();
 
-
-
-
     }
 
 
     const download = () => {
+        if (hasUnsavedChanges) {
+            setShowSaveDialog(true)
+            return
+        }
         console.log(editor.getHTML())
         const htmlString = `
           <!DOCTYPE html>
@@ -493,7 +448,26 @@ const EditorExtension = ({ editor }) => {
         console.log(converted)
         saveAs(converted, 'Note-PDF.docx');
     }
+    // 🆕 Function download sau khi save
+    const downloadAfterSave = async () => {
+        if (onSave) {
+            onSave()  // Trigger save
+        }
+        setShowSaveDialog(false)
 
+        // Wait for save to complete
+        setTimeout(() => {
+            const htmlString = `
+          <!DOCTYPE html>
+          <html>
+          <head><meta charset="utf-8"></head>
+          <body>${editor.getHTML()}</body>
+          </html>
+        `;
+            let converted = htmlDocx.asBlob(htmlString);
+            saveAs(converted, 'Note-PDF.docx');
+        }, 500)
+    }
     useEffect(() => {
         fileSave && editor && addNotes({
             notes: editor.getHTML(),
@@ -512,111 +486,111 @@ const EditorExtension = ({ editor }) => {
 
 
     return (
-        <div className='p-5'>
+        <>
+            <div className='p-5'>
+                <div className="control-group">
+                    <div className="button-group flex gap-3 flex-wrap">
+                        {/* Heading 1 */}
+                        <button
+                            onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+                            className={`p-1 rounded transition-all group ${isH1
+                                ? 'text-green-500 shadow-md'
+                                : 'bg-white text-black'
+                                }`}
+                        >
+                            <Heading1Icon className="group-hover:scale-125 transition-transform duration-200" />
+                        </button>
 
-            <div className="control-group">
-                <div className="button-group flex gap-3 flex-wrap">
-                    {/* Heading 1 */}
-                    <button
-                        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-                        className={`p-1 rounded transition-all group ${isH1
-                            ? 'text-green-500 shadow-md'
-                            : 'bg-white text-black'
-                            }`}
-                    >
-                        <Heading1Icon className="group-hover:scale-125 transition-transform duration-200" />
-                    </button>
+                        {/* Heading 2 */}
+                        <button
+                            onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                            className={`p-1 rounded transition-all group ${isH2
+                                ? 'text-green-500 shadow-md'
+                                : 'bg-white text-black'
+                                }`}
+                        >
+                            <Heading2Icon className="group-hover:scale-125 transition-transform duration-200" />
+                        </button>
 
-                    {/* Heading 2 */}
-                    <button
-                        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-                        className={`p-1 rounded transition-all group ${isH2
-                            ? 'text-green-500 shadow-md'
-                            : 'bg-white text-black'
-                            }`}
-                    >
-                        <Heading2Icon className="group-hover:scale-125 transition-transform duration-200" />
-                    </button>
+                        {/* Heading 3 */}
+                        <button
+                            onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+                            className={`p-1 rounded transition-all group ${isH3
+                                ? 'text-green-500 shadow-md'
+                                : 'bg-white text-black'
+                                }`}
+                        >
+                            <Heading3Icon className="group-hover:scale-125 transition-transform duration-200" />
+                        </button>
 
-                    {/* Heading 3 */}
-                    <button
-                        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-                        className={`p-1 rounded transition-all group ${isH3
-                            ? 'text-green-500 shadow-md'
-                            : 'bg-white text-black'
-                            }`}
-                    >
-                        <Heading3Icon className="group-hover:scale-125 transition-transform duration-200" />
-                    </button>
+                        {/* Bold */}
+                        <button
+                            onClick={() => editor.chain().focus().toggleBold().run()}
+                            className={`p-1 rounded transition-all group ${isBold
+                                ? 'text-green-500 shadow-md'
+                                : 'bg-white text-black'
+                                }`}
+                        >
+                            <BoldIcon className="group-hover:scale-125 transition-transform duration-200" />
+                        </button>
 
-                    {/* Bold */}
-                    <button
-                        onClick={() => editor.chain().focus().toggleBold().run()}
-                        className={`p-1 rounded transition-all group ${isBold
-                            ? 'text-green-500 shadow-md'
-                            : 'bg-white text-black'
-                            }`}
-                    >
-                        <BoldIcon className="group-hover:scale-125 transition-transform duration-200" />
-                    </button>
+                        {/* Italic */}
+                        <button
+                            onClick={() => editor.chain().focus().toggleItalic().run()}
+                            className={`p-1 rounded transition-all group ${isItalic
+                                ? 'text-green-500 shadow-md'
+                                : 'bg-white text-black'
+                                }`}
+                        >
+                            <ItalicIcon className="group-hover:scale-125 transition-transform duration-200" />
+                        </button>
 
-                    {/* Italic */}
-                    <button
-                        onClick={() => editor.chain().focus().toggleItalic().run()}
-                        className={`p-1 rounded transition-all group ${isItalic
-                            ? 'text-green-500 shadow-md'
-                            : 'bg-white text-black'
-                            }`}
-                    >
-                        <ItalicIcon className="group-hover:scale-125 transition-transform duration-200" />
-                    </button>
+                        {/* Underline */}
+                        <button
+                            onClick={() => editor.chain().focus().toggleUnderline().run()}
+                            className={`p-1 rounded transition-all group ${isUnderline
+                                ? 'text-green-500 shadow-md'
+                                : 'bg-white text-black'
+                                }`}
+                        >
+                            <UnderlineIcon className="group-hover:scale-125 transition-transform duration-200" />
+                        </button>
 
-                    {/* Underline */}
-                    <button
-                        onClick={() => editor.chain().focus().toggleUnderline().run()}
-                        className={`p-1 rounded transition-all group ${isUnderline
-                            ? 'text-green-500 shadow-md'
-                            : 'bg-white text-black'
-                            }`}
-                    >
-                        <UnderlineIcon className="group-hover:scale-125 transition-transform duration-200" />
-                    </button>
+                        {/* Strikethrough */}
+                        <button
+                            onClick={() => editor.chain().focus().toggleStrike().run()}
+                            className={`p-1 rounded transition-all group ${isStrike
+                                ? 'text-green-500 shadow-md'
+                                : 'bg-white text-black'
+                                }`}
+                        >
+                            <StrikethroughIcon className="group-hover:scale-125 transition-transform duration-200" />
+                        </button>
 
-                    {/* Strikethrough */}
-                    <button
-                        onClick={() => editor.chain().focus().toggleStrike().run()}
-                        className={`p-1 rounded transition-all group ${isStrike
-                            ? 'text-green-500 shadow-md'
-                            : 'bg-white text-black'
-                            }`}
-                    >
-                        <StrikethroughIcon className="group-hover:scale-125 transition-transform duration-200" />
-                    </button>
+                        {/* Bullet List */}
+                        <button
+                            onClick={() => editor.chain().focus().toggleBulletList().run()}
+                            className={`p-1 rounded transition-all group ${isBulletList
+                                ? 'text-green-500 shadow-md'
+                                : 'bg-white text-black'
+                                }`}
+                        >
+                            <ListIcon className="group-hover:scale-125 transition-transform duration-200" />
+                        </button>
 
-                    {/* Bullet List */}
-                    <button
-                        onClick={() => editor.chain().focus().toggleBulletList().run()}
-                        className={`p-1 rounded transition-all group ${isBulletList
-                            ? 'text-green-500 shadow-md'
-                            : 'bg-white text-black'
-                            }`}
-                    >
-                        <ListIcon className="group-hover:scale-125 transition-transform duration-200" />
-                    </button>
+                        {/* Blockquote */}
+                        <button
+                            onClick={() => editor.chain().focus().toggleBlockquote().run()}
+                            className={`p-1 rounded transition-all group ${isBlockquote
+                                ? 'text-green-500 shadow-md'
+                                : 'bg-white text-black'
+                                }`}
+                        >
+                            <TextQuoteIcon className="group-hover:scale-125 transition-transform duration-200" />
+                        </button>
 
-                    {/* Blockquote */}
-                    <button
-                        onClick={() => editor.chain().focus().toggleBlockquote().run()}
-                        className={`p-1 rounded transition-all group ${isBlockquote
-                            ? 'text-green-500 shadow-md'
-                            : 'bg-white text-black'
-                            }`}
-                    >
-                        <TextQuoteIcon className="group-hover:scale-125 transition-transform duration-200" />
-                    </button>
-
-                    {/* Highlight */}
-                    {/* <button
+                        {/* Highlight */}
+                        {/* <button
                         onClick={() => editor.chain().focus().toggleHighlight().run()}
                         className={`p-1 rounded transition-all group ${isHighlight
                             ? 'text-green-500 shadow-md'
@@ -625,169 +599,169 @@ const EditorExtension = ({ editor }) => {
                     >
                         <HighlighterIcon className="group-hover:scale-125 transition-transform duration-200" />
                     </button> */}
-                    {/* Highlight với dropdown */}
-                    <div className="relative">
+                        {/* Highlight với dropdown */}
+                        <div className="relative">
+                            <button
+                                onClick={() => setShowHighlightDropdown(!showHighlightDropdown)}
+                                className={`p-1 rounded transition-all group ${isHighlight
+                                    ? 'text-green-500 shadow-md'
+                                    : 'bg-white text-black'
+                                    }`}
+                                title="Highlight Colors"
+                            >
+                                <HighlighterIcon className="group-hover:scale-125 transition-transform duration-200" />
+                            </button>
+
+                            {/* Dropdown màu - chỉ hiện khi showHighlightDropdown = true */}
+                            {showHighlightDropdown && (
+                                <div
+                                    className="absolute top-full mt-1 left-[-50px] bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-50 flex gap-2"
+
+                                >
+                                    {[
+                                        { bg: '#fef3c7', border: '#fbbf24', name: 'Yellow' },
+                                        { bg: '#d1fae5', border: '#10b981', name: 'Green' },
+                                        { bg: '#dbeafe', border: '#3b82f6', name: 'Blue' },
+                                        { bg: '#fee2e2', border: '#ef4444', name: 'Red' },
+                                        { bg: '#e9d5ff', border: '#a855f7', name: 'Purple' },
+                                    ].map((color, idx) => (
+                                        <button
+                                            key={idx}
+                                            onClick={() => {
+                                                editor.chain().focus().toggleHighlight({ color: color.bg }).run()
+                                                setShowHighlightDropdown(false) // Đóng dropdown sau khi chọn
+                                            }}
+                                            className={`w-6 h-6 rounded border-2 hover:scale-110 transition-transform ${editor.isActive('highlight', { color: color.bg })
+                                                ? 'ring-2 ring-offset-1 ring-green-500'
+                                                : ''
+                                                }`}
+                                            style={{
+                                                backgroundColor: color.bg,
+                                                borderColor: color.border
+                                            }}
+                                            title={`${color.name} Highlight`}
+                                        />
+                                    ))}
+
+                                    {/* Button xóa highlight */}
+                                    <button
+                                        onClick={() => {
+                                            editor.chain().focus().unsetHighlight().run()
+                                            setShowHighlightDropdown(false)
+                                        }}
+                                        className="w-6 h-6 rounded border-2 border-gray-300 hover:scale-110 transition-transform flex items-center justify-center bg-white"
+                                        title="Remove Highlight"
+                                    >
+                                        <span className="text-xs text-red-500 font-bold">✕</span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+
+                        {/* Align Left */}
                         <button
-                            onClick={() => setShowHighlightDropdown(!showHighlightDropdown)}
-                            className={`p-1 rounded transition-all group ${isHighlight
-                                ? 'text-green-500 shadow-md'
-                                : 'bg-white text-black'
+                            onClick={() => editor.chain().focus().setTextAlign('left').run()}
+                            className={`p-1 rounded transition-all group ${isAlignLeft ? 'text-green-500 shadow-md' : 'bg-white text-black'
                                 }`}
-                            title="Highlight Colors"
                         >
-                            <HighlighterIcon className="group-hover:scale-125 transition-transform duration-200" />
+                            <AlignLeftIcon className="group-hover:scale-125 transition-transform duration-200" />
                         </button>
 
-                        {/* Dropdown màu - chỉ hiện khi showHighlightDropdown = true */}
-                        {showHighlightDropdown && (
-                            <div
-                                className="absolute top-full mt-1 left-[-50px] bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-50 flex gap-2"
+                        {/* Align Center */}
+                        <button
+                            onClick={() => editor.chain().focus().setTextAlign('center').run()}
+                            className={`p-1 rounded transition-all group ${isAlignCenter ? 'text-green-500 shadow-md' : 'bg-white text-black'
+                                }`}
+                        >
+                            <AlignCenterIcon className="group-hover:scale-125 transition-transform duration-200" />
+                        </button>
 
-                            >
-                                {[
-                                    { bg: '#fef3c7', border: '#fbbf24', name: 'Yellow' },
-                                    { bg: '#d1fae5', border: '#10b981', name: 'Green' },
-                                    { bg: '#dbeafe', border: '#3b82f6', name: 'Blue' },
-                                    { bg: '#fee2e2', border: '#ef4444', name: 'Red' },
-                                    { bg: '#e9d5ff', border: '#a855f7', name: 'Purple' },
-                                ].map((color, idx) => (
+                        {/* Align Right */}
+                        <button
+                            onClick={() => editor.chain().focus().setTextAlign('right').run()}
+                            className={`p-1 rounded transition-all group ${isAlignRight ? 'text-green-500 shadow-md' : 'bg-white text-black'
+                                }`}
+                        >
+                            <AlignRightIcon className="group-hover:scale-125 transition-transform duration-200" />
+                        </button>
+
+                        {/* ========== IMAGE CONTROLS - Chỉ hiện khi select ảnh ========== */}
+                        {isImageSelected && (
+                            <>
+                                {/* Separator */}
+                                <div className="w-px h-6 bg-gray-300 mx-2" />
+
+                                {/* Image Size Buttons */}
+                                <div className="flex gap-1 items-center bg-gray-50 px-2 py-1 rounded">
                                     <button
-                                        key={idx}
-                                        onClick={() => {
-                                            editor.chain().focus().toggleHighlight({ color: color.bg }).run()
-                                            setShowHighlightDropdown(false) // Đóng dropdown sau khi chọn
-                                        }}
-                                        className={`w-6 h-6 rounded border-2 hover:scale-110 transition-transform ${editor.isActive('highlight', { color: color.bg })
-                                            ? 'ring-2 ring-offset-1 ring-green-500'
-                                            : ''
-                                            }`}
-                                        style={{
-                                            backgroundColor: color.bg,
-                                            borderColor: color.border
-                                        }}
-                                        title={`${color.name} Highlight`}
-                                    />
-                                ))}
+                                        onClick={() => editor.chain().focus().setImageWidth('25%').run()}
+                                        className="px-2 py-1 text-xs rounded hover:bg-white transition-all"
+                                        title="Small (25%)"
+                                    >
+                                        25%
+                                    </button>
+                                    <button
+                                        onClick={() => editor.chain().focus().setImageWidth('50%').run()}
+                                        className="px-2 py-1 text-xs rounded hover:bg-white transition-all"
+                                        title="Medium (50%)"
+                                    >
+                                        50%
+                                    </button>
+                                    <button
+                                        onClick={() => editor.chain().focus().setImageWidth('75%').run()}
+                                        className="px-2 py-1 text-xs rounded hover:bg-white transition-all"
+                                        title="Large (75%)"
+                                    >
+                                        75%
+                                    </button>
+                                    <button
+                                        onClick={() => editor.chain().focus().setImageWidth('100%').run()}
+                                        className="px-2 py-1 text-xs rounded hover:bg-white transition-all"
+                                        title="Full (100%)"
+                                    >
+                                        100%
+                                    </button>
+                                </div>
 
-                                {/* Button xóa highlight */}
+                                {/* Image Align Buttons - 👇 DÙNG STATE MỚI */}
                                 <button
-                                    onClick={() => {
-                                        editor.chain().focus().unsetHighlight().run()
-                                        setShowHighlightDropdown(false)
-                                    }}
-                                    className="w-6 h-6 rounded border-2 border-gray-300 hover:scale-110 transition-transform flex items-center justify-center bg-white"
-                                    title="Remove Highlight"
+                                    onClick={() => editor.chain().focus().setImageAlign('left').run()}
+                                    className={`p-1 rounded transition-all group ${imageAlignLeft
+                                        ? 'text-green-500 shadow-md bg-green-50'
+                                        : 'bg-white text-black'
+                                        }`}
+                                    title="Align Left"
                                 >
-                                    <span className="text-xs text-red-500 font-bold">✕</span>
+                                    <AlignLeftIcon className="group-hover:scale-125 transition-transform duration-200" />
                                 </button>
-                            </div>
+
+                                <button
+                                    onClick={() => editor.chain().focus().setImageAlign('center').run()}
+                                    className={`p-1 rounded transition-all group ${imageAlignCenter
+                                        ? 'text-green-500 shadow-md bg-green-50'
+                                        : 'bg-white text-black'
+                                        }`}
+                                    title="Align Center"
+                                >
+                                    <AlignCenterIcon className="group-hover:scale-125 transition-transform duration-200" />
+                                </button>
+
+                                <button
+                                    onClick={() => editor.chain().focus().setImageAlign('right').run()}
+                                    className={`p-1 rounded transition-all group ${imageAlignRight
+                                        ? 'text-green-500 shadow-md bg-green-50'
+                                        : 'bg-white text-black'
+                                        }`}
+                                    title="Align Right"
+                                >
+                                    <AlignRightIcon className="group-hover:scale-125 transition-transform duration-200" />
+                                </button>
+                            </>
                         )}
-                    </div>
 
-
-                    {/* Align Left */}
-                    <button
-                        onClick={() => editor.chain().focus().setTextAlign('left').run()}
-                        className={`p-1 rounded transition-all group ${isAlignLeft ? 'text-green-500 shadow-md' : 'bg-white text-black'
-                            }`}
-                    >
-                        <AlignLeftIcon className="group-hover:scale-125 transition-transform duration-200" />
-                    </button>
-
-                    {/* Align Center */}
-                    <button
-                        onClick={() => editor.chain().focus().setTextAlign('center').run()}
-                        className={`p-1 rounded transition-all group ${isAlignCenter ? 'text-green-500 shadow-md' : 'bg-white text-black'
-                            }`}
-                    >
-                        <AlignCenterIcon className="group-hover:scale-125 transition-transform duration-200" />
-                    </button>
-
-                    {/* Align Right */}
-                    <button
-                        onClick={() => editor.chain().focus().setTextAlign('right').run()}
-                        className={`p-1 rounded transition-all group ${isAlignRight ? 'text-green-500 shadow-md' : 'bg-white text-black'
-                            }`}
-                    >
-                        <AlignRightIcon className="group-hover:scale-125 transition-transform duration-200" />
-                    </button>
-
-                    {/* ========== IMAGE CONTROLS - Chỉ hiện khi select ảnh ========== */}
-                    {isImageSelected && (
-                        <>
-                            {/* Separator */}
-                            <div className="w-px h-6 bg-gray-300 mx-2" />
-
-                            {/* Image Size Buttons */}
-                            <div className="flex gap-1 items-center bg-gray-50 px-2 py-1 rounded">
-                                <button
-                                    onClick={() => editor.chain().focus().setImageWidth('25%').run()}
-                                    className="px-2 py-1 text-xs rounded hover:bg-white transition-all"
-                                    title="Small (25%)"
-                                >
-                                    25%
-                                </button>
-                                <button
-                                    onClick={() => editor.chain().focus().setImageWidth('50%').run()}
-                                    className="px-2 py-1 text-xs rounded hover:bg-white transition-all"
-                                    title="Medium (50%)"
-                                >
-                                    50%
-                                </button>
-                                <button
-                                    onClick={() => editor.chain().focus().setImageWidth('75%').run()}
-                                    className="px-2 py-1 text-xs rounded hover:bg-white transition-all"
-                                    title="Large (75%)"
-                                >
-                                    75%
-                                </button>
-                                <button
-                                    onClick={() => editor.chain().focus().setImageWidth('100%').run()}
-                                    className="px-2 py-1 text-xs rounded hover:bg-white transition-all"
-                                    title="Full (100%)"
-                                >
-                                    100%
-                                </button>
-                            </div>
-
-                            {/* Image Align Buttons - 👇 DÙNG STATE MỚI */}
-                            <button
-                                onClick={() => editor.chain().focus().setImageAlign('left').run()}
-                                className={`p-1 rounded transition-all group ${imageAlignLeft
-                                    ? 'text-green-500 shadow-md bg-green-50'
-                                    : 'bg-white text-black'
-                                    }`}
-                                title="Align Left"
-                            >
-                                <AlignLeftIcon className="group-hover:scale-125 transition-transform duration-200" />
-                            </button>
-
-                            <button
-                                onClick={() => editor.chain().focus().setImageAlign('center').run()}
-                                className={`p-1 rounded transition-all group ${imageAlignCenter
-                                    ? 'text-green-500 shadow-md bg-green-50'
-                                    : 'bg-white text-black'
-                                    }`}
-                                title="Align Center"
-                            >
-                                <AlignCenterIcon className="group-hover:scale-125 transition-transform duration-200" />
-                            </button>
-
-                            <button
-                                onClick={() => editor.chain().focus().setImageAlign('right').run()}
-                                className={`p-1 rounded transition-all group ${imageAlignRight
-                                    ? 'text-green-500 shadow-md bg-green-50'
-                                    : 'bg-white text-black'
-                                    }`}
-                                title="Align Right"
-                            >
-                                <AlignRightIcon className="group-hover:scale-125 transition-transform duration-200" />
-                            </button>
-                        </>
-                    )}
-
-                    {/* Sparkles */}
-                    {/* <button
+                        {/* Sparkles */}
+                        {/* <button
                         onClick={() => onAiClick()}
                         className='hover:text-green-600 group'
                     >
@@ -800,59 +774,77 @@ const EditorExtension = ({ editor }) => {
 
 
 
-                    <button
-                        onClick={() => {
-                            editor.chain().focus().setImageUploadNode().run()
-                        }}
-                        className="p-1 rounded transition-all group bg-white text-black hover:text-green-500"
-                        title="Upload Image"
-                    >
-                        <ImageIcon className="group-hover:scale-125 transition-transform duration-200" />
-                    </button>
+                        <button
+                            onClick={() => {
+                                editor.chain().focus().setImageUploadNode().run()
+                            }}
+                            className="p-1 rounded transition-all group bg-white text-black hover:text-green-500"
+                            title="Upload Image"
+                        >
+                            <ImageIcon className="group-hover:scale-125 transition-transform duration-200" />
+                        </button>
 
 
 
 
-                    <button
-                        onClick={() => onAiClick()}
-                        className='p-1 hover:scale-110 transition-all ml-3 cursor-pointer flex-shrink-0'
-                    >
-                        <div className="animate-spin-float-glow">
-                            <Image
-                                src="/CS_Star_4.svg"
-                                alt="AI"
-                                width={28}
-                                height={28}
-                            />
-                        </div>
-                    </button>
+                        <button
+                            onClick={() => onAiClick()}
+                            className='p-1 hover:scale-110 transition-all ml-3 cursor-pointer flex-shrink-0'
+                        >
+                            <div className="animate-spin-float-glow">
+                                <Image
+                                    src="/CS_Star_4.svg"
+                                    alt="AI"
+                                    width={28}
+                                    height={28}
+                                />
+                            </div>
+                        </button>
 
-                    {isImageSelected && (
-                        <>
-                            <div className="w-px h-6 bg-gray-300 mx-2" />
+                        {isImageSelected && (
+                            <>
+                                <div className="w-px h-6 bg-gray-300 mx-2" />
 
-                            <button
-                                onClick={onImageSearchClick}
-                                disabled={isProcessingImage}
-                                className={`px-3 py-1 rounded-lg transition-all flex items-center gap-2 ${isProcessingImage
-                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                                    : 'bg-gradient-to-r from-blue-700 to-orange-500 text-white hover:scale-105 shadow-md'
-                                    }`}
-                                title="Find this image in PDF"
-                            >
-                                <SparklesIcon className="w-4 h-4" />
-                                {isProcessingImage ? 'Processing...' : 'Find this image in PDF'}
-                            </button>
-                        </>
-                    )}
+                                <button
+                                    onClick={onImageSearchClick}
+                                    disabled={isProcessingImage}
+                                    className={`px-3 py-1 rounded-lg transition-all flex items-center gap-2 ${isProcessingImage
+                                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                        : 'bg-gradient-to-r from-blue-700 to-orange-500 text-white hover:scale-105 shadow-md'
+                                        }`}
+                                    title="Find this image in PDF"
+                                >
+                                    <SparklesIcon className="w-4 h-4" />
+                                    {isProcessingImage ? 'Processing...' : 'Find this image in PDF'}
+                                </button>
+                            </>
+                        )}
 
-                    {/* Download */}
-                    <button onClick={download} className='ml-3'>
-                        <DownloadIcon className="hover:scale-125 transition-transform duration-200" />
-                    </button>
+                        {/* Download */}
+                        <button onClick={download} className='ml-3'>
+                            <DownloadIcon className="hover:scale-125 transition-transform duration-200" />
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
+            <AlertDialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Save changes before download?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            You have unsaved changes. Please save your notes before downloading.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={downloadAfterSave}>
+                            Save & Download
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
+
     )
 }
 
