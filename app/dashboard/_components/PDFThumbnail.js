@@ -1,6 +1,5 @@
 'use client'
 import React, { useState } from 'react'
-import Image from 'next/image'
 import { FileText } from 'lucide-react'
 
 const PDFThumbnail = ({ thumbnailUrl, fileName }) => {

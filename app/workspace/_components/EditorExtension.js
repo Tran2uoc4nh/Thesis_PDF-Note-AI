@@ -103,15 +103,9 @@ const EditorExtension = ({ editor, hasUnsavedChanges, onSave }) => {
     const searchImageInPdf = useAction(api.myAction.searchImageInPdf)
 
 
-    // // Lưu History
-    // const [conversationHistory, setConversationHistory] = useState([]);
-
 
     const onImageSearchClick = async () => {
-        // if (!isImageSelected) {
-        //     toast.error('Vui lòng chọn một hình ảnh trước!')
-        //     return
-        // }
+
 
         try {
             setIsProcessingImage(true)
@@ -227,11 +221,13 @@ const EditorExtension = ({ editor, hasUnsavedChanges, onSave }) => {
 
     const onAiClick = async () => {
         toast('AI is thinking...')
+        // 1. Lấy text user bôi đen (câu hỏi
         const selectedText = editor.state.doc.textBetween(
             editor.state.selection.from,
             editor.state.selection.to,
             ''
         )
+        // 2. Search trong Vector DB để tìm context liên quan
         const result = await SearchAI({
             query: selectedText,
             fileId: fileId
@@ -275,8 +271,6 @@ const EditorExtension = ({ editor, hasUnsavedChanges, onSave }) => {
             Use this context to answer follow-up questions or reference previous answers.
             `;
         }
-
-
 
 
         const PROMPT = `You are a strict AI assistant for PDF question-answering.
@@ -371,27 +365,109 @@ const EditorExtension = ({ editor, hasUnsavedChanges, onSave }) => {
                                 - Different concepts or definitions
                             * Clearly indicate source: [From Notes] vs [From PDF - Page X]
                             * Example format:
-                            <div>
+                             <div>
                                 <ul>
-                                    <li>
-                                        <ul>
-                                            <li><strong>In your notes:</strong> [what user noted]</li>
-                                            <li><strong>In PDF:</strong> [what PDF says]</li>
-                                            <li><strong> => </strong> [Are they contradictory? Why might this difference exist?]</li>
-                                        </ul>
-                                    </li>
-                                     <p style="color: #92400e; font-size: 14px; margin-top: 12px;">
-                                     <em>Note: These differences may be due to [possible reasons: different interpretations, user's own insights, clarifications, etc.]</em>
-                                     </p>
+                                    <li><strong>In your notes:</strong> [what user noted]</li>
+                                    <li><strong>In PDF:</strong> [what PDF says]</li>
+                                   
                                 </ul>
-                               
+                                 <strong> => </strong> [Are they contradictory? Why might this difference exist?]
+                                <p style="color: #92400e; font-size: 14px; margin-top: 12px;">
+                                    <em>Note: These differences may be due to [possible reasons: different interpretations, user's own insights, clarifications, etc.]</em>
+                                </p>
                             </div>
-                        Remember: It is better to say "I don't know" than to provide information not in the document or previous conversation.
+
+                        16. VERIFYING USER'S NOTES ACCURACY (KIỂM CHỨNG GHI CHÚ - SEMANTIC COMPARISON):
+                        - If asked to verify, check, or validate user's notes:
+                            * Keywords to recognize: "tui ghi chú đúng chưa", "ghi chú đúng ý chưa", "notes đúng không", "kiểm tra ghi chú", "verify notes", "check notes", "ghi chú có đúng không", "tôi hiểu đúng chưa", "đúng ý chưa", "có đúng không", "paraphrase đúng chưa"
+                            
+                            * CRITICAL: Use SEMANTIC COMPARISON (so sánh ngữ nghĩa), NOT keyword matching:
+                                - Focus on MEANING and CONCEPTS, not exact words
+                                - Understand that PARAPHRASING is normal and acceptable if the meaning is the same
+                                - Example: "Machine learning improves accuracy" vs "ML enhances precision" = SAME MEANING (✅ Correct)
+                                - Example: "The study shows 80% success" vs "The research found 60% success" = DIFFERENT MEANING (❌ Wrong)
+                            
+                            * Extract the user's notes from PREVIOUS NOTES AND CONVERSATION section
+                            * For each note/statement, perform SEMANTIC ANALYSIS:
+                                1. Identify the CORE MEANING/CONCEPT of the user's note
+                                2. Search CONTEXT FROM DOCUMENT for passages with SIMILAR MEANING (not just similar words)
+                                3. Compare the SEMANTIC CONTENT:
+                                    - Same core meaning/concept? → ✅ Correct (even if words are different)
+                                    - Similar but slightly different nuance? → ⚠️ Partially correct (needs clarification)
+                                    - Different or contradictory meaning? → ❌ Incorrect (misunderstanding)
+                                    - Not found in PDF? → ❓ Not in document (could be user's inference)
+                            
+                            * When comparing, consider:
+                                - Synonyms and equivalent expressions (e.g., "tăng" = "increase" = "rise")
+                                - Different sentence structures but same meaning
+                                - Conceptual equivalence (e.g., "AI model" = "artificial intelligence system")
+                                - BUT: Different numbers, dates, or factual claims = Different meaning
+                            
+                            * Provide a comprehensive verification report:
+                                - ✅ Correct notes (what user got right - even if paraphrased differently)
+                                - ⚠️ Partially correct (close meaning but needs clarification or nuance adjustment)
+                                - ❌ Incorrect or misunderstood (different meaning, wrong facts, contradictions)
+                                - ❓ Not found (information not in PDF - could be user's own inference/analysis)
+                            
+                            * For each note, show:
+                                - What the user wrote (exact text)
+                                - What the PDF says (with page reference)
+                                - Semantic comparison result (same meaning? different? why?)
+                                - If incorrect: suggested correction
+                            
+                            * Format:
+                            <div style="background: #f0f9ff; padding: 16px; border-radius: 8px; margin: 12px 0;">
+                                
+                                <div style="margin-bottom: 16px;">
+                                    <h4 style="color: #15803d; margin-bottom: 8px;">✅ Correct:</h4>
+                                    <ul style="margin-left: 20px;">
+                                        <li>
+                                            <strong>Your note:</strong> "[user's note]"<br/>
+                                            <strong>PDF says (page X):</strong> "[relevant PDF content]"<br/>
+                                            <em style="color: #15803d;">→ The same meaning, even if the way of expressing is different</em>
+                                        </li>
+                                    </ul>
+                                </div>
+                                
+                                <div style="margin-bottom: 16px;">
+                                        <h4 style="color: #ca8a04; margin-bottom: 8px;">⚠️ Need to clarify (Similar meaning):</h4>
+                                    <ul style="margin-left: 20px;">
+                                        <li>
+                                            <strong>Your note:</strong> "[user's note]"<br/>
+                                            <strong>PDF says (page X):</strong> "[what PDF says]"<br/>
+                                            <strong>Difference:</strong> [nuance or detail that differs]<br/>
+                                            <strong>Suggestion:</strong> [how to clarify or adjust]
+                                        </li>
+                                    </ul>
+                                </div>
+                                
+                                <div style="margin-bottom: 16px;">
+                                    <h4 style="color: #dc2626; margin-bottom: 8px;">❌ Need to fix (Different meaning or wrong):</h4>
+                                    <ul style="margin-left: 20px;">
+                                        <li>
+                                            <strong>Your note:</strong> "[user's incorrect note]"<br/>
+                                            <strong>PDF says (page X):</strong> "[correct information from PDF]"<br/>
+                                            <strong>Problem:</strong> [why it's wrong - different meaning, wrong fact, contradiction]<br/>
+                                            <strong>Suggestion:</strong> "[suggested correction]"
+                                        </li>
+                                    </ul>
+                                </div>
+                                
+                                <div style="margin-bottom: 16px;">
+                                    <h4 style="color: #6366f1; margin-bottom: 8px;">❓ Not found in PDF:</h4>
+                                    <ul style="margin-left: 20px;">
+                                        <li>
+                                            <strong>Your note:</strong> "[user's note]"<br/>
+                                            <em style="color: #6366f1;">→ Not found in PDF. It could be your own inference or background knowledge.</em>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
 
                         Current Question: "${selectedText}"
 
                         REMEMBER: 
-                        - Match the language of the user's question, NOT the language of the context.
+                        - Always anwer in the language of the user's question, NOT the language of the context.
                         - If question asks for "all", "list", "find all", "extract", provide COMPLETE extraction from ALL context chunks.
                         - For dates/events: Look for ALL time references across all chunks
                         - For statistics: Look for ALL numerical data across all chunks
@@ -431,6 +507,7 @@ const EditorExtension = ({ editor, hasUnsavedChanges, onSave }) => {
     }
 
 
+    // Download file xài thư viện html-docx-js
     const download = () => {
         if (hasUnsavedChanges) {
             setShowSaveDialog(true)
@@ -448,7 +525,7 @@ const EditorExtension = ({ editor, hasUnsavedChanges, onSave }) => {
         console.log(converted)
         saveAs(converted, 'Note-PDF.docx');
     }
-    // 🆕 Function download sau khi save
+    // download sau khi save
     const downloadAfterSave = async () => {
         if (onSave) {
             onSave()  // Trigger save
@@ -589,16 +666,8 @@ const EditorExtension = ({ editor, hasUnsavedChanges, onSave }) => {
                             <TextQuoteIcon className="group-hover:scale-125 transition-transform duration-200" />
                         </button>
 
-                        {/* Highlight */}
-                        {/* <button
-                        onClick={() => editor.chain().focus().toggleHighlight().run()}
-                        className={`p-1 rounded transition-all group ${isHighlight
-                            ? 'text-green-500 shadow-md'
-                            : 'bg-white text-black'
-                            }`}
-                    >
-                        <HighlighterIcon className="group-hover:scale-125 transition-transform duration-200" />
-                    </button> */}
+
+
                         {/* Highlight với dropdown */}
                         <div className="relative">
                             <button
@@ -760,18 +829,6 @@ const EditorExtension = ({ editor, hasUnsavedChanges, onSave }) => {
                             </>
                         )}
 
-                        {/* Sparkles */}
-                        {/* <button
-                        onClick={() => onAiClick()}
-                        className='hover:text-green-600 group'
-                    >
-                        <SparklesIcon className="animate-spin-float-glow " />
-
-                        
-                    </button> */}
-
-
-
 
 
                         <button
@@ -783,8 +840,6 @@ const EditorExtension = ({ editor, hasUnsavedChanges, onSave }) => {
                         >
                             <ImageIcon className="group-hover:scale-125 transition-transform duration-200" />
                         </button>
-
-
 
 
                         <button
@@ -824,6 +879,8 @@ const EditorExtension = ({ editor, hasUnsavedChanges, onSave }) => {
                         <button onClick={download} className='ml-3'>
                             <DownloadIcon className="hover:scale-125 transition-transform duration-200" />
                         </button>
+
+
                     </div>
                 </div>
             </div>

@@ -56,21 +56,16 @@ const Dashboard = () => {
     const { user } = useUser()
     const [fileToDelete, setFileToDelete] = useState(null)
     const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-    // ✅ FIX: Dùng mounted flag
+    // Dùng mounted flag
     const [mounted, setMounted] = useState(false)
-    // const [viewMode, setViewMode] = useState(() => {
-    //     if (typeof window !== 'undefined') {
-    //         return localStorage.getItem('dashboardViewMode') || 'grid'
-    //     }
-    //     return 'grid'
-    // })
-    // ✅ FIX: Khởi tạo với default value, load từ localStorage sau
+
+    // Khởi tạo với default value, load từ localStorage sau
     const [viewMode, setViewMode] = useState('grid')
     const [sortBy, setSortBy] = useState('date')
     const [sortOrder, setSortOrder] = useState('desc')
 
 
-    // ✅ FIX: Load từ localStorage SAU KHI component mount
+    //Load từ localStorage SAU KHI component mount
     useEffect(() => {
         setMounted(true)
 
@@ -242,11 +237,6 @@ const Dashboard = () => {
 
 
             {/* Grid View */}
-            {/* {viewMode === 'grid' && (
-                <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-10 mt-10'>
-                    {getSortedFiles(fileList)?.length > 0 ? getSortedFiles(fileList)?.map((file, index) => (
-                        <Link key={index} href={'/workspace/' + file.fileId}>
-                            <div className='relative group flex p-5 shadow-md rounded-md flex-col items-center justify-center border border-gray-500 cursor-pointer hover:scale-105 transition-all'> */}
             {viewMode === 'grid' && (
                 <div className='flex flex-wrap gap-10 mt-10 justify-start'>
                     {getSortedFiles(fileList)?.length > 0 ? getSortedFiles(fileList)?.map((file, index) => (
@@ -330,7 +320,7 @@ const Dashboard = () => {
                         </Link>
                     ))
                         : [1, 2, 3, 4, 5].map((item, index) => (
-                            <div key={index} className='bg-slate-200 rounded-lg h-[88px] animate-pulse'></div>
+                            <div key={index} className='bg-slate-200 rounded-lg h-[88px] w-full animate-pulse'></div>
                         ))
                     }
                 </div>

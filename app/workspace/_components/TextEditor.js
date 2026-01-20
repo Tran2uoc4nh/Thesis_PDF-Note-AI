@@ -77,7 +77,7 @@ const TextEditor = ({ fileId, onUnsavedChanges }) => {
             TextAlign.configure({
                 types: ['heading', 'paragraph'],
             }),
-            // 👇 Thêm Image extension
+            // Thêm Image extension
             CustomImage.configure({
                 inline: false, // Block-level cho image-node
                 allowBase64: true,
@@ -108,7 +108,7 @@ const TextEditor = ({ fileId, onUnsavedChanges }) => {
             // Khi click ra ngoài (selection rỗng và không có text được chọn)
             const { from, to } = editor.state.selection
             if (from === to) {
-                // Nếu cursor ở vị trí trống, xóa tất cả marks
+                // Nếu cursor ở vị trí trống, xóa tất cả marks (Bold, Italic, Underline, Highlight)
                 editor.commands.unsetAllMarks()
             }
         },
@@ -123,6 +123,20 @@ const TextEditor = ({ fileId, onUnsavedChanges }) => {
             }
         }
     })
+    // clear editor khi fileId thay đổi
+    useEffect(() => {
+        if (editor) {
+            // Clear editor content ngay khi fileId thay đổi
+            editor.commands.setContent('')
+            setInitialContent(null)
+            setHasUnsavedChanges(false)
+            if (onUnsavedChanges) {
+                onUnsavedChanges(false)
+            }
+        }
+    }, [fileId]) // ← Dependency là fileId
+
+
     // Load initial content
     useEffect(() => {
         if (editor && notes) {

@@ -4,31 +4,7 @@ import { action } from "./_generated/server.js";
 import { TaskType } from "@google/generative-ai";
 import { v } from "convex/values";
 
-// Ingest (Chuyển PDF thành Vector Embedding)
-// export const ingest = action({
-//     args: {
-//         splitText: v.any(),
-//         fileId: v.string(),
-//         metadata: v.optional(v.any())
-//     },
-//     handler: async (ctx, args) => {
-//         await ConvexVectorStore.fromTexts(
-//             args.splitText,
-//             { fileId: args.fileId },
-//             new GoogleGenerativeAIEmbeddings({
-//                 apiKey: process.env.GEMINI_API_KEY,
-//                 model: "gemini-embedding-001",
-//                 taskType: TaskType.RETRIEVAL_DOCUMENT,
-//                 title: "Document title",
-//             }),
-//             { ctx }
-//         );
-//         return 'Completed...'
-//     },
-// });
 
-
-// Search (Tìm kiếm trong Vector Embedding)
 // export const search = action({
 //     args: {
 //         query: v.string(),
@@ -91,7 +67,6 @@ export const search = action({
         fileId: v.string()
     },
     handler: async (ctx, args) => {
-        // ========== START TIMING ==========
         const startTotal = Date.now();
 
         try {
@@ -148,9 +123,6 @@ export const search = action({
         }
     },
 });
-
-
-
 
 
 

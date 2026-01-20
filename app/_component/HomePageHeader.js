@@ -2,6 +2,7 @@ import Image from 'next/image'
 import React from 'react'
 import { useUser } from '@clerk/nextjs';
 import { UserButton } from '@clerk/nextjs';
+
 function HomePageHeader() {
     const { isLoaded, user } = useUser();
     return (
@@ -11,9 +12,8 @@ function HomePageHeader() {
                     <div className="flex flex-wrap items-center justify-between py-2 gap-6 md:py-4 md:gap-0 relative">
                         <input aria-hidden="true" type="checkbox" name="toggle_nav" id="toggle_nav" className="hidden peer" />
                         <div className="relative z-20 w-full flex justify-between lg:w-max md:px-0">
-                            {/* <a href="/dashboard" aria-label="logo" className="flex space-x-2 items-center"> */}
+
                             <Image src={'/logo3.svg'} alt='logo' width={150} height={110} />
-                            {/* </a> */}
 
                             <div className="relative flex items-center lg:hidden max-h-10">
                                 <label role="button" htmlFor="toggle_nav" aria-label="humburger" id="hamburger" className="relative  p-6 -mr-6">
@@ -53,7 +53,7 @@ function HomePageHeader() {
                                 </ul>
                             </div>
 
-                            {/* Conditional: UserButton khi đã login, không hiện gì khi chưa login */}
+                            {/* UserButton khi đã login, không hiện gì khi chưa login */}
                             <div className="mt-12 lg:mt-0">
                                 {isLoaded && user && (
                                     <div className="flex items-center">

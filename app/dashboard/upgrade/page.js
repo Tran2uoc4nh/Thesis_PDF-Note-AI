@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { useQuery } from 'convex/react';
 import { Button } from '@/components/ui/button';
 function UpgragePlan() {
+
   const upgradeUserPlan = useMutation(api.user.userUpgradePlan)
   const { user } = useUser()
   // Lấy thông tin user từ database
@@ -79,35 +80,6 @@ function UpgragePlan() {
                 <span className="text-gray-700"> Unlimited Notes Taking </span>
               </li>
 
-              {/* <li className="flex items-center gap-1">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth="1.5"
-                  stroke="currentColor"
-                  className="size-5 text-green-500"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-
-                <span className="text-gray-700"> Email support </span>
-              </li>
-
-              <li className="flex items-center gap-1">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth="1.5"
-                  stroke="currentColor"
-                  className="size-5 text-green-500"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-
-                <span className="text-gray-700"> Help center access </span>
-              </li> */}
 
             </ul>
 
@@ -195,35 +167,7 @@ function UpgragePlan() {
                 <span className="text-gray-700"> Unlimited Notes Taking </span>
               </li>
 
-              {/* <li className="flex items-center gap-1">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth="1.5"
-                  stroke="currentColor"
-                  className="size-5 text-green-500"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
 
-                <span className="text-gray-700"> Email support </span>
-              </li>
-
-              <li className="flex items-center gap-1">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth="1.5"
-                  stroke="currentColor"
-                  className="size-5 text-green-500"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-
-                <span className="text-gray-700"> Help center access </span>
-              </li> */}
             </ul>
 
             {!GetUserInfo?.upgrade && (

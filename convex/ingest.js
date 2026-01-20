@@ -16,7 +16,7 @@ const visionModel = genAI.getGenerativeModel({
     generationConfig: { responseMimeType: "application/json", temperature: 0.1 }
 });
 
-// ===== ƯỚC TÍNH TOKEN (GIỐNG PDF-LOADER) =====
+// Ước tính token
 function estimateTokens(text) {
     if (!text) return 0;
     const charCount = text.length;
@@ -26,13 +26,13 @@ function estimateTokens(text) {
     return Math.ceil((charBasedTokens + wordBasedTokens) / 2);
 }
 
-// ===== RECURSIVE CHARACTER TEXT SPLITTER (GIỐNG PDF-LOADER) =====
+// Recursive character text splitter
 function splitTextIntoChunks(text, chunkSize = 800, overlap = 200) {
     if (!text || estimateTokens(text) <= chunkSize) {
         return text ? [text] : [];
     }
 
-    // Separators theo thứ tự ưu tiên (giống pdf-loader)
+    // Separators 
     const separators = [
         "\n\n## ", "\n\n# ", "\n\n",  // Headers & Paragraphs
         "\n", ". ", "? ", "! ",        // Lines & Sentences
@@ -72,14 +72,14 @@ function splitTextIntoChunks(text, chunkSize = 800, overlap = 200) {
 
             // Bắt đầu chunk mới với overlap
             if (overlap > 0 && currentChunk.length > overlap) {
-                // Lấy phần cuối của chunk cũ làm overlap
+
                 const overlapText = currentChunk.slice(-overlap);
                 currentChunk = overlapText + bestSep + part;
             } else {
                 currentChunk = part;
             }
 
-            // Nếu part vẫn quá dài, recursive split
+            // Recursive split nếu chunk vẫn quá dài
             if (estimateTokens(currentChunk) > chunkSize) {
                 const subChunks = splitTextIntoChunks(currentChunk, chunkSize, overlap);
                 chunks.push(...subChunks.slice(0, -1));
@@ -88,7 +88,6 @@ function splitTextIntoChunks(text, chunkSize = 800, overlap = 200) {
         }
     }
 
-    // Đừng quên chunk cuối
     if (currentChunk.trim().length > 10) {
         chunks.push(currentChunk.trim());
     }
@@ -100,7 +99,7 @@ export const ingestPdfWithImages = action({
     args: { pdfUrl: v.string(), fileId: v.string() },
     handler: async (ctx, args) => {
         const startTime = Date.now();
-        console.log(`\n========== INGEST FINAL (Sequential Fast) ==========`);
+        console.log(`\nINGEST FINAL (Sequential Fast)`);
 
         // 1. Tải file & Load
         console.log("--- Step 1: Loading PDF ---");
@@ -111,8 +110,7 @@ export const ingestPdfWithImages = action({
         const totalPages = srcDoc.getPageCount();
         console.log(`✓ PDF Loaded: ${totalPages} pages`);
 
-        // CẤU HÌNH VISION (Đọc PDF)
-        // Phần này không bị lỗi nên giữ nguyên tốc độ cao
+        // Cấu hình  (Đọc PDF)
         let VISION_CONFIG;
         if (totalPages < 80) {
             VISION_CONFIG = { BATCH: 100, SLEEP: 0 }; // File nhỏ: Max tốc độ
@@ -130,9 +128,7 @@ export const ingestPdfWithImages = action({
             });
         }
 
-        // ============================================
-        // STEP 2: VISION PROCESSING (Giữ nguyên)
-        // ============================================
+        // Step 2: Vision Processing
         const results = [];
         console.log(`--- Step 2: Vision Processing (${tasks.length} chunks) ---`);
 
@@ -150,13 +146,13 @@ export const ingestPdfWithImages = action({
             }
         }
 
-        // 3. Gộp kết quả
+        // Step 3: Merging Results
         console.log("--- Step 3: Merging Results ---");
         const allDocumentsToSave = [];
         results.forEach((res, index) => {
             if (!res) return;
             if (index === 0 && res.documentMetadata) {
-                // SỬA ĐOẠN NÀY: Thêm tableOfContents vào content
+                // Thêm tableOfContents vào content
                 const meta = res.documentMetadata;
                 const tocContent = meta.tableOfContents ? `\n\nTABLE OF CONTENTS:\n${meta.tableOfContents}` : "";
                 allDocumentsToSave.push({
@@ -166,30 +162,11 @@ export const ingestPdfWithImages = action({
                     metadata: { ...res.documentMetadata, fileId: args.fileId, isMetadata: true }
                 });
             }
-            // res.pages?.forEach(p => {
-            //     const realPageNum = p.pageNumber;
-            //     if (p.textContent) {
-            //         allDocumentsToSave.push({
-            //             type: "text",
-            //             content: p.textContent,
-            //             page: realPageNum,
-            //             metadata: { source: 'gemini-ocr', fileId: args.fileId, page: realPageNum }
-            //         });
-            //     }
-            //     p.visualElements?.forEach(v => {
-            //         allDocumentsToSave.push({
-            //             type: "image",
-            //             content: `[IMAGE Page ${realPageNum}]: ${v.description}`,
-            //             page: realPageNum,
-            //             metadata: { source: 'gemini-vision', type: v.type, fileId: args.fileId }
-            //         });
-            //     });
-            // });
-            // MỚI (thay thế dòng 89-98):
+
             res.pages?.forEach(p => {
                 const realPageNum = p.pageNumber;
                 if (p.textContent) {
-                    // ===== CHIA TEXT THÀNH CHUNKS NHỎ =====
+                    // Chia text thành chunks nhỏ
                     const textChunks = splitTextIntoChunks(p.textContent, 800, 200);
                     textChunks.forEach((chunk, chunkIndex) => {
                         allDocumentsToSave.push({
@@ -217,11 +194,7 @@ export const ingestPdfWithImages = action({
             });
         });
 
-        // ============================================
-        // STEP 4: SAVING (THAY ĐỔI CHIẾN THUẬT: SEQUENTIAL)
-        // ============================================
-        // Không dùng Promise.all nữa. Lưu từng cái một nhưng nghỉ cực ít.
-        // Cách này đảm bảo không bao giờ bị Burst Limit.
+        // Step 4: Saving
         console.log(`--- Step 4: Saving ${allDocumentsToSave.length} items (Sequential Fast) ---`);
 
         let savedCount = 0;
@@ -240,16 +213,14 @@ export const ingestPdfWithImages = action({
 
                 if (savedCount % 10 === 0) process.stdout.write(`.`); // In dấu chấm cho gọn log
 
-                // NGHỈ CỰC NGẮN (0.2s) SAU MỖI CÁI
-                // Giống như bắn tỉa: Pằng... Pằng... Pằng...
-                // Thay vì súng máy: Pằng pằng pằng pằng (Bị chặn)
+                // Pause briefly (0.2s) after each item
                 await new Promise(resolve => setTimeout(resolve, 200));
 
             } catch (err) {
                 console.error(`\nError saving index ${savedCount}:`, err.message);
                 // Nếu vẫn bị lỗi thì nghỉ lâu hơn xíu rồi chạy tiếp
                 if (err.message.includes('429')) {
-                    console.log("⚠️ Limit hit. Pausing 5s...");
+                    console.log("Limit hit. Pausing 5s...");
                     await new Promise(resolve => setTimeout(resolve, 5000));
                 }
             }
@@ -262,7 +233,7 @@ export const ingestPdfWithImages = action({
 });
 
 
-// ===== HÀM WORKER XỬ LÝ 1 MẢNH PDF =====
+// HÀM WORKER XỬ LÝ 1 PDF CHUNK
 // async function processPdfChunk(srcDoc, startPage, endPage) {
 //     try {
 //         const subDoc = await PDFDocument.create();

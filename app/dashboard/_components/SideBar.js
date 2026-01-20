@@ -38,8 +38,7 @@ const SideBar = () => {
                 <Link href='/dashboard'>
                     {/* Nút Workspace */}
                     <div className={`flex items-center gap-2 p-3 mt-7 cursor-pointer  hover:bg-slate-100 
-                transition-all duration-200
-                hover:shadow-lg hover:-translate-y-1 rounded-xl ${path == '/dashboard' && 'bg-slate-100 shadow-lg -translate-y-1 '}`}>
+                    transition-all duration-200 hover:shadow-lg hover:-translate-y-1 rounded-xl ${path == '/dashboard' && 'bg-slate-100 shadow-lg -translate-y-1 '}`}>
                         <Files />
                         <h2>
                             Workspace
