@@ -9,7 +9,7 @@ const apiKey = process.env.GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey);
 
 
-const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
 
 const visionModel = genAI.getGenerativeModel({
     model: "gemini-2.5-flash",
@@ -110,12 +110,12 @@ export const ingestPdfWithImages = action({
         const totalPages = srcDoc.getPageCount();
         console.log(`✓ PDF Loaded: ${totalPages} pages`);
 
-        // Cấu hình  (Đọc PDF)
         let VISION_CONFIG;
-        if (totalPages < 80) {
-            VISION_CONFIG = { BATCH: 100, SLEEP: 0 }; // File nhỏ: Max tốc độ
+        if (totalPages < 50) {
+
+            VISION_CONFIG = { BATCH: 5, SLEEP: 0 };
         } else {
-            VISION_CONFIG = { BATCH: 4, SLEEP: 2000 }; // File to: An toàn
+            VISION_CONFIG = { BATCH: 5, SLEEP: 65000 }; // 65 giây giữa các batch
         }
 
         // 2. Chuẩn bị chunks
@@ -152,14 +152,37 @@ export const ingestPdfWithImages = action({
         results.forEach((res, index) => {
             if (!res) return;
             if (index === 0 && res.documentMetadata) {
-                // Thêm tableOfContents vào content
-                const meta = res.documentMetadata;
-                const tocContent = meta.tableOfContents ? `\n\nTABLE OF CONTENTS:\n${meta.tableOfContents}` : "";
+
+
+                const meta = res.documentMetadata || {};
+
+                const authorLine = meta.author ? `\nAuthor: ${meta.author}` : "";
+                const advisorLine = meta.advisor ? `\nAdvisor: ${meta.advisor}` : "";
+                const instLine = meta.institution ? `\nInstitution: ${meta.institution}` : "";
+                const deptLine = meta.department ? `\nDepartment: ${meta.department}` : "";
+                const degreeLine = meta.degree ? `\nDegree: ${meta.degree}` : "";
+                const yearLine = meta.year ? `\nYear: ${meta.year}` : "";
+                const locationLine = meta.location ? `\nLocation: ${meta.location}` : "";
+
+                const tocContent =
+                    meta.tableOfContents
+                        ? `\n\nTABLE OF CONTENTS:\n${meta.tableOfContents}`
+                        : "";
+
                 allDocumentsToSave.push({
                     type: "metadata",
-                    content: `INFO:\nTitle: ${meta.title}\nSummary: ${meta.summary || 'N/A'}${tocContent}`,
+                    content:
+                        `\nTitle: ${meta.title || "N/A"}` +
+                        authorLine +
+                        advisorLine +
+                        instLine +
+                        deptLine +
+                        degreeLine +
+                        yearLine +
+                        locationLine +
+                        tocContent,
                     page: 0,
-                    metadata: { ...res.documentMetadata, fileId: args.fileId, isMetadata: true }
+                    metadata: { ...meta, fileId: args.fileId, isMetadata: true },
                 });
             }
 
@@ -211,7 +234,7 @@ export const ingestPdfWithImages = action({
                 });
                 savedCount++;
 
-                if (savedCount % 10 === 0) process.stdout.write(`.`); // In dấu chấm cho gọn log
+                if (savedCount % 10 === 0) process.stdout.write(`.`);
 
                 // Pause briefly (0.2s) after each item
                 await new Promise(resolve => setTimeout(resolve, 200));
@@ -233,109 +256,6 @@ export const ingestPdfWithImages = action({
 });
 
 
-// HÀM WORKER XỬ LÝ 1 PDF CHUNK
-// async function processPdfChunk(srcDoc, startPage, endPage) {
-//     try {
-//         const subDoc = await PDFDocument.create();
-//         const indices = [];
-//         for (let j = startPage; j <= endPage; j++) indices.push(j);
-
-//         const copiedPages = await subDoc.copyPages(srcDoc, indices);
-//         copiedPages.forEach((page) => subDoc.addPage(page));
-
-//         const pdfBytes = await subDoc.save();
-//         const base64Chunk = Buffer.from(pdfBytes).toString('base64');
-
-//         // Logic Prompt: Chỉ lấy Metadata ở chunk đầu tiên
-//         const isFirstChunk = startPage === 0;
-
-//         const prompt = `
-//         Analyze this PDF chunk (Pages ${startPage + 1} to ${endPage + 1}).
-
-//         ${isFirstChunk ? `
-//         1. **Document Metadata** (look at cover page, title page, headers):
-//            - Title: The main title of the document
-//            - Author: Who wrote/created this document (look for "By", "Author", "Written by", student name)
-//            - Date/Year: When was it created
-//            - Institution: School, university, organization
-//            - Document Type: thesis, report, paper, book, manual, etc.
-//            - Degree: If it's a thesis, what degree (Bachelor, Master, PhD)
-//            - Department: Which department/school
-//         ` : `
-//         1. **Document Metadata**: IGNORE THIS STEP (This is not the first chunk).
-//         `}
-
-//         2. **Page Content**:
-//            - All text from each page
-//            - Visual elements (charts, diagrams, tables, images, graphs, figures)
-
-//         Return JSON with this exact structure:  
-//         {
-//             ${isFirstChunk ? `
-//             "documentMetadata": {
-//                 "title": "Full document title",
-//                 "author": "Author full name",
-//                 "year": "Year",
-//                 "institution": "Institution name",
-//                 "department": "Department name",
-//                 "documentType": "thesis|report|paper|etc",
-//                 "degree": "Bachelor|Master|PhD or empty",
-//                 "location": "City, Country"
-//             },
-//             ` : ""} 
-//             "pages": [
-//                 {
-//                 "pageNumber": 1, // USE REAL PAGE NUMBER (Start from ${startPage + 1})
-//                 "textContent": "All text from page...",
-//                 "visualElements": [
-//                     {
-//                     "type": "chart|diagram|table|image|graph|figure",
-//                     "description": "Describe the content of this visual element in detail."
-//                     }
-//                 ]
-//                 }
-//             ]
-//         }
-
-//         CRITICAL RULES:
-//         ${isFirstChunk ? `- Look carefully at the FIRST PAGE for metadata` : ""}
-//         - Extract metadata fields even if you need to infer from context.
-//         - Keep original text language.
-//         - Describe visuals in English.
-
-//         **JSON FORMATTING RULES:**
-//         - Output raw JSON only. DO NOT use markdown code blocks.
-//         - Escape all double quotes within strings (e.g., use \\" instead of ").
-//         - Do not include trailing commas.
-//         - Ensure "pageNumber" corresponds to the actual document page number provided in instructions.
-//         `;
-
-//         // Gọi Gemini (Tạo instance mới để tránh xung đột)
-//         const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY).getGenerativeModel({
-//             model: "gemini-2.5-flash",
-//             generationConfig: { responseMimeType: "application/json" }
-//         });
-
-//         const result = await model.generateContent([
-//             { inlineData: { data: base64Chunk, mimeType: "application/pdf" } },
-//             prompt
-//         ]);
-
-//         const responseText = result.response.text();
-
-//         // Clean & Parse JSON
-//         try {
-//             const cleanedResponse = responseText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-//             return JSON.parse(cleanedResponse);
-//         } catch (parseError) {
-//             console.error(`JSON Parse Error at chunk ${startPage}-${endPage}:`, parseError.message);
-//             return { pages: [] };
-//         }
-//     } catch (e) {
-//         console.error(`Error processing chunk ${startPage}-${endPage}:`, e.message);
-//         return { pages: [] };
-//     }
-// }
 
 // ===== HÀM WORKER XỬ LÝ 1 MẢNH PDF (ĐÃ NÂNG CẤP XỬ LÝ MỤC LỤC) =====
 async function processPdfChunk(srcDoc, startPage, endPage) {

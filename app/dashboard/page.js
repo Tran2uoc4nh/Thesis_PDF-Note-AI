@@ -329,7 +329,6 @@ const Dashboard = () => {
 
 
             {/* Delete Confirmation Dialog */}
-            {/* Delete Confirmation Dialog */}
             <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
                 <DialogContent>
                     <DialogHeader>

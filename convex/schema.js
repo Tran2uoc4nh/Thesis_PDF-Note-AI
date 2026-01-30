@@ -25,7 +25,7 @@ export default defineSchema({
 
     }).vectorIndex("byEmbedding", {
         vectorField: "embedding",
-        dimensions: 768,
+        dimensions: 3072,
         filterFields: ["metadata.fileId"]
     }),
     notes: defineTable({
